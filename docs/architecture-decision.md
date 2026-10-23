@@ -1,20 +1,31 @@
 # 架构决策记录（Architecture Decision）
 
-> 决策编号 AD-01~AD-06。每条含：背景→决策→理由→被否方案→复议条件。全部基于 18 个仓库的实证审计（research/repository-matrix.md、research/workflow-audit.md）。
+> 决策编号 AD-01~AD-07。每条含：背景→决策→理由→被否方案→复议条件，并标注**验证状态**（词典见 v2 节尾）。
+> v2 变更（评审反馈落实）：① 全部决策加验证状态标注——"源码支持的设计结论"与"已实测"严格分开；② AD-01 论据 1 收紧（DSL 跨版本问题只能证明迁移风险，不能单独证明无法实现补遗回退——补最小对照实验 EXP-1）；③ 新增 AD-07（文档引擎集成决策，基于 docs/doc-engine-audit.md 审计）。
+> 全部基于 18 个仓库的实证审计（research/repository-matrix.md、research/workflow-audit.md）+ 文档引擎只读审计（docs/doc-engine-audit.md）。
 
-## AD-01 不采用完整 Dify 平台作为编排层
+## 验证状态词典
+
+| 标注 | 含义 |
+|---|---|
+| `TESTED` | 已实测（实验报告/测试可复现） |
+| `VERIFIED_SOURCE` | 结论有开源仓库源码/官方文档一手证据 |
+| `DESIGN_ASSUMPTION` | 设计推断，未经实现验证（可能被推翻） |
+| `PENDING` | 验证计划中（见 research/verification-plan.md） |
+
+## AD-01 不采用完整 Dify 平台作为编排层 `VERIFIED_SOURCE（论据）+ PENDING（EXP-1 实测补证）`
 
 **决策**：不部署 Dify workflow/Chatflow 承载标书流程；标书业务不依赖其 DSL。仅可选使用其知识库 API 作为对比适配器（见 AD-03）。
 
 **理由（实证）**：
-1. **DSL 死板**：Dify workflow 适合固定单链路；标书流程是证据状态驱动的多阶段可重入流程（补遗文件到达→增量抽取→受影响章节 DIRTY 重跑），DSL 表达不了条件回退与影响面分析。
-2. **状态被平台持有**：llm_bidwriting 实证——后端退化为 dify_client.py 粘合层（uploadFile→run_parse_workflow→stream_generate_chapter→run_check_workflow），业务状态一半在 Dify 平台库，**取不干净**（R-12）。
-3. **版本绑死**：其 DSL schema 0.5.0 与现行 Dify 大版本存在迁移鸿沟；每次升级是持续成本（llm_bidwriting 的 3 个 YAML 即实证）。
-4. **重量**：自托管栈为全家桶（api/worker/postgres/redis/向量库/sandbox/nginx 多容器），与"轻量可维护"目标冲突。
+1. **DSL 死板**：Dify workflow 适合固定单链路；标书流程是证据状态驱动的多阶段可重入流程（补遗文件到达→增量抽取→受影响章节 DIRTY 重跑），当前设计用状态机表达条件回退与影响面分析。~~DSL 表达不了~~ **（v2 收紧）**：已有证据（DSL 跨版本兼容的公开问题记录）只能证明**版本迁移存在风险**，不能单独证明 Dify 无法实现补遗回退或章节重跑——该结论待最小对照实验 EXP-1（verification-plan §4：五场景实测，含中断恢复/规则修改成本/状态迁移面）补证后升 `TESTED`。
+2. **状态被平台持有**：llm_bidwriting 实证——后端退化为 dify_client.py 粘合层，业务状态一半在 Dify 平台库，**取不干净**（R-12）。`VERIFIED_SOURCE`
+3. **版本绑死**：其 DSL schema 0.5.0 与现行 Dify 大版本存在迁移鸿沟；每次升级是持续成本（llm_bidwriting 的 3 个 YAML 即实证）。`VERIFIED_SOURCE`
+4. **重量**：自托管栈为全家桶（api/worker/postgres/redis/向量库/sandbox/nginx 多容器），与"轻量可维护"目标冲突。`VERIFIED_SOURCE`
 
-**复议条件**：出现强需求"非技术人员可视化编排单节点任务"时，可把单点原子能力（如某次抽取）外包给 Dify，但业务状态机与流程编排不迁移。
+**复议条件**：EXP-1 实测若显示 Dify 在 E2（补遗回退）/E3（中断恢复）/E5（状态迁移）成本相当或更低，则 AD-01/AD-02 的**理由区**按实测改写（决策本身仍可维持，但依据必须是实测维护成本而非缺陷指控）。出现强需求"非技术人员可视化编排单节点任务"时，可把单点原子能力外包给 Dify，业务状态机不迁移。
 
-## AD-02 编排采用路径 A：Skill 驱动封闭 Agent + 后端状态机
+## AD-02 编排采用路径 A：Skill 驱动封闭 Agent + 后端状态机 `VERIFIED_SOURCE（存活实证）+ DESIGN_ASSUMPTION（弱模型约束效果）`
 
 **决策**：路径 A（SKILL.md 定义路径 + 8~9 个 MCP 工具 + 后端状态机/领域库）优于路径 B（Agent 自由规划 / LangGraph 图编排）。MVP 直接按路径 A 实施。
 
@@ -29,9 +40,9 @@
 | 维护成本 | ✅ 状态机表+Skill 文档化，人均可维护 | ⚠️ 图结构演化需懂框架；bidcraft 12 agent 图是维护反例风险 |
 | 实证存活度 | LingYan / tender-master / claude-bid-gen 三个活跃实现（MIT） | bidcraft（Apache-2.0）单点存在，LUV803 宣称未深扫（UNVERIFIED） |
 
-**结论**：路径 B 元素（图编排）仅在"多 Agent 并行起草+复杂回退"需求出现时局部引入（bidcraft 可作那时对照），MVP 不需要（见 AD-04）。
+**结论**：路径 B 元素（图编排）仅在"多 Agent 并行起草+复杂回退"需求出现时局部引入（bidcraft 可作那时对照），MVP 不需要（见 AD-04）。**v2 备注**：路径 A 对"低能力模型"的实际约束效果是 DESIGN_ASSUMPTION——TC-11（越级防护）+ Skill evals 执行后升 TESTED。
 
-## AD-03 RAG 知识库选型：自建薄服务为默认，Dify API 为可选适配器，Cherry Studio 否决
+## AD-03 RAG 知识库选型：自建薄服务为默认，Dify API 为可选适配器，Cherry Studio 否决 `VERIFIED_SOURCE`
 
 **背景**（用户问）：不部署完整 Dify（太重），但需要它的 RAG 知识库能力；Skill 驱动封闭 Agent 完成文件处理→入库→检索；Cherry Studio 备选；"不方便自建的话用 Dify API 怎么样"。
 
@@ -49,21 +60,34 @@
 | 许可证 | 自有 | 修改版 Apache2.0（多租户/品牌条款，对外 SaaS 需商业授权） | SaaS 条款 | **AGPL-3.0**（复用其代码传染） |
 | 业界实证 | ark（pgvector+bigram）、rag-tender（FTS5+向量）均为 MIT 可复用 | llm_bidwriting 绑死 0.5.0 | — | 第三方 api-for-cherrystudio 另建 API 反证其客户端定位 |
 
-**关键原则**：**解析和切块是后端确定性代码，Agent 只做编排**（调导入工具、核对统计数字、重试失败件）。"条款因分块遗漏丢失"（R-01）这类最重的风险必须由代码兜底，不能靠模型自觉。
+**关键原则**：**解析和切块是后端确定性代码，Agent 只做编排**（调导入工具、核对统计数字、重试失败件）。"条款因分块遗漏丢失"（R-01）这类最重的风险必须由代码兜底，不能靠模型自觉。**v2 备注**：AdapterA 的检索质量是否 ≥ AdapterB 是 PENDING（TC-10）。
 
-## AD-04 MVP 不引入 LangGraph/图编排框架
+## AD-04 MVP 不引入 LangGraph/图编排框架 `VERIFIED_SOURCE`
 
 状态机用"枚举+转换表+乐观锁"实现于后端（bid-domain-model.md §2），不引框架。理由：转换表 ~10 个状态、回退规则 1 条（DIRTY 重跑），LangGraph 的价值（复杂图/并行/人机中断）在此规模下是负资产；换框架成本 = 迁移全部状态语义。**复议条件**：多 Agent 并行起草（>3 个并发写作 Agent）或跨阶段复杂回退图出现时重评（对照 bidcraft）。
 
-## AD-05 文档内核独立、接口最小、ID 隔离
+## AD-05 文档内核独立、接口最小、ID 隔离 `REVISED（v2：接口假设已被引擎审计修正）`
 
-- 不修改/不替换现有文档内核；经**稳定接口**访问：`create_block / update_block / get_block / render / export`（+ style_profile 概念）。
-- 文档块 ID（DOC-*）由内核签发，业务侧只存 `content_ref` 引用；REQ/EV/SEC 与 DOC 三个命名空间**永不混用、不做映射改写**（用户要求）。
-- 导出产物经 sha256 校验回传；页数统计以 Word 渲染口径为准（claude-bid-gen 实证：LibreOffice 页数不可信）。
+- 不修改/不替换现有文档内核；经**稳定接口**访问。
+- **v2 修订（依据 docs/doc-engine-audit.md）**：原设想的 `create_block/update_block/get_block/render/export` 五函数最小面与引擎实际能力不匹配——引擎已产品化的契约面是 **mdcore 操作流（op/anchor/revision/event）+ workbench 八步命令 + wasm 出口（export_docx/import_docx/WasmWorkbench）**，且其证据系统（三态/只降不升/显式重验）与标书业务同构。集成接口**对齐引擎既有契约**（AD-07），不再要求引擎实现本业务自设的五函数面。
+- 文档块 ID（DOC-* = 引擎 BlockId）由内核签发，业务侧只存 `content_ref` 引用 + DocumentRef（版本+指纹）快照；REQ/EV/SEC 与 DOC 三个命名空间**永不混用、不做映射改写**（用户要求，维持）。
+- 导出产物经 sha256 校验回传；页数统计以 Word 渲染口径为准（claude-bid-gen 实证：LibreOffice 页数不可信）——渲染级自动化复验依赖引擎 G6（office-f C 路线产品化，doc-engine-audit §4）。
 
-## AD-06 可测试与可回滚
+## AD-06 可测试与可回滚 `VERIFIED_SOURCE（先例）+ PENDING（本项执行）`
 
 1. 每个 MCP 工具一条契约测试（含幂等重放）；状态机转换全覆盖单测。
-2. 合成招标文件埋点回归集（research/test-plan.md）：条款完整性、精确匹配、断点恢复、审校命中四类是发布门禁。
+2. 合成招标文件埋点回归集（research/test-plan.md）：条款完整性、精确匹配、断点恢复、审校命中四类是发布门禁。**v2 补**：可执行夹具三件套（文件+标准答案+预期状态转换）与跨文档一致性检查脚本见 verification-plan §2。
 3. KBAdapter 可切换 → 检索层 A/B（TC-10）不锁定供应商；模型层沿用 biaoshu 的 LiteLLM 统一入口思想（BYOK、可换模型）。
 4. 复用代码白名单仅限 MIT/Apache 仓库（LingYan、rag-tender、tender-master、claude-bid-gen、bidcraft、biaoshu、rejection-check）；AGPL/无许可仓库只读设计不抄代码（R-10）。
+
+## AD-07 文档引擎集成：对齐 mdcore 既有契约面，差距走引擎能力需求清单 `VERIFIED_SOURCE（引擎审计）+ DESIGN_ASSUMPTION（映射契约，V3 验证后升 TESTED）`
+
+**背景**（v2 新增）：对 mmqz/mdcore（main=6daeace）与 mmqz/cleanroom-analysis 的只读审计（docs/doc-engine-audit.md）确认引擎成熟度高于原假设。
+
+**决策**：
+1. **集成姿态**：不自建文档编辑/证据/审校内核，**直接对齐引擎契约**——业务侧把 REQ/EV/CMP/SEC 映射到引擎对象（§5 映射表）；证据三态、只降不升、显式重验、human: 审批门禁、原子发布、乐观并发全部继承引擎实现，业务层不重复防守。
+2. **映射要点**：业务 content_ref = 引擎 BlockId；失效判定用引擎内容指纹、审计用版本戳（引擎定谳原则）；编辑态引用 Locator::MarkdownBlock、导出态 Locator::DocxParagraph 双载体；审批动作映射 Review 命令且操作者前缀强制 human:。
+3. **差距处理**：交付格式面缺口（G1 目录域/G2 文档级样式/G3 暗标元数据清零 = P0；G4 分节页码/G5 模板套用/G6 渲染复验/G7 文本框读面 = P1）**不在业务侧变通实现**（暗标元数据清零等无法在引擎外可靠完成），统一走引擎能力需求清单（doc-engine-audit §6）由引擎团队排期——在补齐前，M3/M4 里程碑的导出面验收范围相应缩减（V1-d 依赖 G1/G2/G3）。
+4. **职责边界**（防范围蔓延）：PDF/OCR 表格提取、招标语义规则、知识库检索均**留在业务侧**，不请求引擎实现（doc-engine-audit §6"明确不需要引擎做的"清单）。
+
+**复议条件**：引擎团队对 P0 项排期显著晚于本业务 MVP 需要 → 暗标场景降级为"人工后处理 + 检查单"过渡方案（R-11 缓解措施临时降档，风险册记录）；或引擎侧给出等价替代路径（如 G1 以静态目录方案交付）。V3 三问断言脚本（verification-plan §3.3）执行后本条映射契约升 TESTED。

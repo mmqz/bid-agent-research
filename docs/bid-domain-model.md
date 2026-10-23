@@ -38,7 +38,7 @@ id=TF-xxxx；project_id；kind（招标文件/附件/图纸/补遗/答疑/评分
 id=EV-xxxx；project_id + org_ref（跨项目复用企业资料库）；source_type（资质证书/业绩合同/验收报告/人员证书/检测报告/财务/信用/产品参数/历史标书）；file_ref（对象存储）；title；issuer；issue_date；**valid_until（有效期，EXPIRED 即禁止绑定，R-03）**；coverage_tags[]（可证明能力标签：资质等级/行业/产品线/人员规模）；chunks[]（chunk_id → 文件+位置映射，证据链可回溯）；status（OK / EXPIRING / EXPIRED / MISSING / CONFLICT）。
 
 ### ComplianceItem（响应矩阵行）
-id=CMP-xxxx；requirement_id ⇄ evidence_ids[]；gap（NONE / PARTIAL / FULL / UNMET）；draft_section_id；owner_note。**资格条件与否决项行必须显式 policy，未填禁止进入起草阶段**（Q5 闸门）。
+id=CMP-xxxx；requirement_id ⇄ evidence_ids[]；gap（NONE / PARTIAL / FULL / UNMET）；draft_section_id；owner_note。**资格条件与否决项行必须显式 policy，未填禁止进入起草阶段**（R-03/R-04 闸门；原引审计问题 Q5，编号映射见 risk-register 追溯矩阵）。
 
 ### BidSection（章节任务）
 | 字段 | 说明 |
@@ -56,7 +56,7 @@ id=CMP-xxxx；requirement_id ⇄ evidence_ids[]；gap（NONE / PARTIAL / FULL / 
 id=VF-xxxx；kind（DETERMINISTIC / MODEL）；rule_code（如 PRICE_EXCEEDS_BUDGET / CERT_EXPIRED / PAGE_LIMIT / DARK_BID_WORD / MISSING_SIGNATURE / UNANCHORED_CLAIM）；severity（BLOCKER / MAJOR / MINOR）；section_id / requirement_id；message + 证据定位；status（OPEN / RESOLVED / WAIVED + 理由）。**BLOCKER 未清零禁止 export**（状态机硬闸门）。
 
 ### RevisionTask（修订任务）
-id=RT-xxxx；finding_ids[]；section_id；instruction；status（OPEN / CLAIMED / DONE / SUPERSEDED）。审校→修订→复检闭环，防"发现即丢失"（Q3）。
+id=RT-xxxx；finding_ids[]；section_id；instruction；status（OPEN / CLAIMED / DONE / SUPERSEDED）。审校→修订→复检闭环，防"发现即丢失"（R-04/R-07；原引 Q3）。
 
 ## 2. 状态机
 
@@ -66,7 +66,7 @@ DRAFT → FILES_IMPORTED → REQUIREMENTS_EXTRACTED → MATRIX_READY
       → EVIDENCE_BOUND → DRAFTING → VALIDATING → REVIEWING
       → READY_TO_EXPORT → EXPORTED
 回退规则：任何阶段检测到上游 content_version 变化 → 受影响 SEC 标记 DIRTY，
-项目不整体回退，仅重跑 DIRTY 章节（影响面分析，Q8）。
+项目不整体回退，仅重跑 DIRTY 章节（影响面分析，R-05；原引 Q8）。
 越级保护：状态机拒绝与当前 status 不符的工具调用（E_STATE）——低能力模型跳步防护（R-14）。
 
 SectionStatus: 见上；ACCEPTED 后需显式 reopen 才可修改（幂等保护，R-06）。
@@ -86,6 +86,6 @@ BidSection ──(content_ref 单向引用)──> DOC-block（文档内核命�
 
 1. **ID 隔离**：REQ/EV/SEC 由业务库签发；DOC-* 由文档内核签发。两者只通过 `content_ref` 引用连接，条款 ID 不参与文档内部编号（用户要求：不混用）。
 2. **溯源锚不可变**：source_anchor 的原文引用片段在 REQ 创建时固化，后续任何编辑不得覆盖（审校阶段比对用）。
-3. **参数结构化前置**：型号/金额/日期在抽取阶段即落入 params 槽位，供确定性规则与精确检索直接消费，不再从自然语言二次猜测（Q2/Q7）。
+3. **参数结构化前置**：型号/金额/日期在抽取阶段即落入 params 槽位，供确定性规则与精确检索直接消费，不再从自然语言二次猜测（R-01/R-02 与 R-07 规则分界；原引 Q2/Q7）。
 4. **企业资料库跨项目**：EV 支持 org 级库 + 项目级绑定两段结构（借 rag-tender 的 Organization→Document→Evidence 分层），资质一次入库多项目复用。
 5. **诚实状态**：所有"未确认/缺证据"以显式枚举表达（pending/MISSING/待澄清），禁止用空值或 0 默认替代——防"看起来完成了"。

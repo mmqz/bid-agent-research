@@ -76,7 +76,7 @@ out: { section_id, content_ref:"DOC-*", version, stats:{words, citations, unanch
 in : { project_id, scope:"all"|section_ids[], rules_profile:"standard|dark_bid", project_version }
 out: { findings:[{vf_id, kind:DETERMINISTIC|MODEL, rule_code, severity, section_id?, requirement_id?, message, evidence}],
        counts:{blocker, major, minor, deterministic, model} }
-规则分层（Q7）:
+规则分层（R-07 规则分界；原引审计问题 Q7）:
   确定性（代码断言，先行、必跑）: 报价 vs 控制价/预算、工期 vs 招标要求、资质有效期 vs 开标日、
       页数/字数上限（Word 渲染口径）、必填格式项、签章位存在性、暗标禁字清单扫描、条款引用完整性
   模型（仅产 finding 不改稿）: 表述质量、逻辑连贯、偏离合理化、疑似过度承诺
