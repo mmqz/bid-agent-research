@@ -1,96 +1,69 @@
-# 架构决策（architecture-decision）
+# 架构决策记录（Architecture Decision）
 
-> 决策问题：标书业务系统的流程控制采用 A）Skill + 少量业务级 MCP 工具、后端固定状态机，还是 B）Agent 自由规划 / 图编排框架；是否引入 Dify / LangGraph / 其他编排引擎。
-> 依据：15 仓库源码审计（`research/workflow-audit.md`、`repository-matrix.md` §7）+ 十问 Q6/Q8/Q9 的证据。**不因开源项目使用了某框架而照搬**——本决策的每一条都有审计反例支撑。
+> 决策编号 AD-01~AD-06。每条含：背景→决策→理由→被否方案→复议条件。全部基于 18 个仓库的实证审计（research/repository-matrix.md、research/workflow-audit.md）。
 
-## 0. 结论（TL;DR）
+## AD-01 不采用完整 Dify 平台作为编排层
 
-1. **采用路径 A**：后端固定状态机承载全流程（`bid-domain-model.md` §6），Skill 承载操作纪律（`bid-skill-design.md`），12 个业务级 MCP 工具为唯一操作面（`bid-mcp-contract.md`）。模型只做"单章起草、逐条判定"的局部工作，不负责流程规划。
-2. **MVP 不引入任何编排引擎**：不采用 Dify；不采用 LangGraph；状态机用普通后端代码实现（FastAPI/Postgres 量级即可）。
-3. **吸收而非采用**：LangGraph 的 checkpoint/thread resume 语义、Dify DSL 的节点提示词组织方式，均以 clean-room 方式吸收进事件溯源与上下文设计。
-4. 触发重评的条件见 §6。
+**决策**：不部署 Dify workflow/Chatflow 承载标书流程；标书业务不依赖其 DSL。仅可选使用其知识库 API 作为对比适配器（见 AD-03）。
 
-## 1. 路径定义
+**理由（实证）**：
+1. **DSL 死板**：Dify workflow 适合固定单链路；标书流程是证据状态驱动的多阶段可重入流程（补遗文件到达→增量抽取→受影响章节 DIRTY 重跑），DSL 表达不了条件回退与影响面分析。
+2. **状态被平台持有**：llm_bidwriting 实证——后端退化为 dify_client.py 粘合层（uploadFile→run_parse_workflow→stream_generate_chapter→run_check_workflow），业务状态一半在 Dify 平台库，**取不干净**（R-12）。
+3. **版本绑死**：其 DSL schema 0.5.0 与现行 Dify 大版本存在迁移鸿沟；每次升级是持续成本（llm_bidwriting 的 3 个 YAML 即实证）。
+4. **重量**：自托管栈为全家桶（api/worker/postgres/redis/向量库/sandbox/nginx 多容器），与"轻量可维护"目标冲突。
 
-- **路径 A（推荐）**：后端状态机为权威流程（阶段、门、守卫全部代码化）；Agent（任意能力档位的对话模型 + bid-authoring Skill）在状态机约束下逐阶段调用业务工具；工具带状态前置校验与 `allowed_next_tools` 自纠错。
-- **路径 B**：Agent 自行规划步骤（free-form），或以 LangGraph/AutoGen/Dify 等编排框架承载流程图，流程正确性依赖模型或图定义，状态依赖 checkpointer/上下文。
+**复议条件**：出现强需求"非技术人员可视化编排单节点任务"时，可把单点原子能力（如某次抽取）外包给 Dify，但业务状态机与流程编排不迁移。
 
-## 2. 五维评估（任务指定的维度，逐条给出审计证据）
+## AD-02 编排采用路径 A：Skill 驱动封闭 Agent + 后端状态机
 
-### 2.1 低能力 Agent 适配
-- A：模型不需要记住全流程——每一步都由 `INVALID_STATE + allowed_next_tools` 引导；服务端组上下文包，模型只见"一章的要求+证据"。低能力模型也能走对。
-- B：要求模型正确规划并记住十几步流程与中间产物。审计反例：kcaaaa 纯提示词流（13 个 Skill、11 道门禁）**零代码强制**，其自身历史记录了四大故障（token 超限/显存爆炸/死循环/调用失败）——门禁"写在提示词里"等于没有。
-- **结论：A 显著优于 B。**
+**决策**：路径 A（SKILL.md 定义路径 + 8~9 个 MCP 工具 + 后端状态机/领域库）优于路径 B（Agent 自由规划 / LangGraph 图编排）。MVP 直接按路径 A 实施。
 
-### 2.2 长任务可恢复性
-- A：状态在数据库 + 事件流；恢复 = 读状态 + 续做（`get_bid_project_state`），与对话上下文无关；换会话、换模型、隔天续做都成立。
-- B：free-form Agent 的状态在上下文里，恢复 = 重放上下文（贵且不可靠）；LangGraph checkpointer 理论上可恢复，但审计证据：bidcraft 用了 LangGraph，人审门被 v0.2 决策移除、图退化为线性两节点、`COMPILE_AUTO_RESUME` 默认关闭 [复核]；BidMaster 的 resume 是假的（只存 key 名，恢复即全量重跑）。
-- **结论：A 显著优于 B。即便选 B 也得先把业务状态建成 A 的样子（失效传播、门、快照），框架只是包了一层。**
+**对比矩阵**：
 
-### 2.3 测试难度
-- A：状态机转换单测（无 LLM）+ 工具契约测试（无 LLM）+ 规则注册表逐条测试（无 LLM）——三者可进 CI；LLM 仅在"生成质量"层做抽样评测。
-- 审计证据：15 仓库中**有成体系测试的 6 家全部是 A 型**（96syh 62 例、LingYan 2.1 万行、ai_bidding 57 例离线可跑、power_grid 16 例、BidPilot 38 例+CI、biaoshuv2 2865 行）；而"Agent 魔法"越重的仓库（BidMaster 零测试、tender-cli 4 例、Get00 零测试且必崩）测试越缺失——**这不是巧合：A 型架构每个环节都是普通代码，才可测**。
-- B：流程正确性只能端到端验证，LLM 在环导致用例不稳定、成本高。
-- **结论：A 显著优于 B。**
+| 维度 | 路径 A：Skill+MCP+状态机 | 路径 B：自由规划/图编排（LangGraph 型） |
+|---|---|---|
+| 低能力 Agent 兼容 | ✅ 路径写死，门禁在后端（E_STATE 拒越级） | ❌ 依赖模型规划力，弱模型跑偏（tender-master"顺序锁死"的存在即证明业界踩过此坑） |
+| 可恢复性 | ✅ 状态在自家库，断点/影响面分析任意实现 | ⚠️ 依赖框架 checkpointer（BidMaster 文件式 checkpoint 仅有 latest，无影响面）；LangGraph 有 checkpointer 但状态模型受框架约束 |
+| 可测试性 | ✅ MCP 工具契约测试 + 状态机单测 + Skill evals（ark/LingYan 均有 evals 先例） | ⚠️ 图行为测试要 mock 节点集合，回归面大 |
+| Token 成本 | ✅ 封闭路径→按阶段加载 references（渐进披露），长文件靠 offset/limit（LingYan 禁整读纪律） | ❌ 自由规划上下文易膨胀重试 |
+| 维护成本 | ✅ 状态机表+Skill 文档化，人均可维护 | ⚠️ 图结构演化需懂框架；bidcraft 12 agent 图是维护反例风险 |
+| 实证存活度 | LingYan / tender-master / claude-bid-gen 三个活跃实现（MIT） | bidcraft（Apache-2.0）单点存在，LUV803 宣称未深扫（UNVERIFIED） |
 
-### 2.4 Token 成本
-- A：服务端为每章构造有界上下文包（要求摘要+证据+大纲注记+风格策略），全量招标文件只在服务端流转一次；成本与章节数线性、可预算（model_run 全留痕）。
-- B：Agent 自规划必然反复读取全量材料（规划、自查、纠错各读一遍）；审计证据：15 家普遍出现 12k~400k 截断 hack，**本质都是"把全文塞给模型"的架构错误**——而 ai_bidding v2 的五域上下文构造是唯一正解样本。
-- **结论：A 显著优于 B（长文档场景差距被放大）。**
+**结论**：路径 B 元素（图编排）仅在"多 Agent 并行起草+复杂回退"需求出现时局部引入（bidcraft 可作那时对照），MVP 不需要（见 AD-04）。
 
-### 2.5 维护成本
-- A：前期投入高（状态机+契约设计，本仓库 4 份设计文档已完成大半），后期变更受控（转换表显式、事件可审计、契约错误码稳定）。
-- B：前期快，后期高——提示词考古、不可复现缺陷、框架版本锁定（LingYan `deepagents==0.7.7` 强绑定的前车之鉴；Dify DSL 绑定平台版本）。
-- **结论：A 前高后低，B 前低后高；标书系统生命周期长（规则持续演进），选 A。**
+## AD-03 RAG 知识库选型：自建薄服务为默认，Dify API 为可选适配器，Cherry Studio 否决
 
-## 3. 开源界的"实践投票"
+**背景**（用户问）：不部署完整 Dify（太重），但需要它的 RAG 知识库能力；Skill 驱动封闭 Agent 完成文件处理→入库→检索；Cherry Studio 备选；"不方便自建的话用 Dify API 怎么样"。
 
-15 个仓库中，工程质量最高的四家**全部自发收敛到 A 型**：OpenBidKit（SQLite 50+ 表 + 8 相位恢复 + 确定性规则）、LingYan（checkpoint + 重派守卫）、ai_bidding（v2 事件溯源 + 确定性格式目录链）、BidPilot（11 节点状态机 + 失效传播 + export_ready 硬门）。而采用 B 型或半 B 型的仓库（llm_bidwriting=Dify 外挂、tender-cli=对话式 Agent、Get00=Skill 引导宿主 Agent、BidMaster=自研 Agent 循环）在溯源、矩阵、阻断、恢复四项上全面落后。**这不是框架偏好问题，是业务本质**：标书是强流程、强合规、强审计的文档工程，流程本身没有创造性波动空间。
+**决策**：知识库做成 `KBAdapter` 接口（ingest/search 两个方法），**AdapterA 自建薄服务为默认实现**；**AdapterB = Dify Knowledge API 仅作为检索质量 A/B 对比与过渡期兜底**（锁版本+契约测试）；**Cherry Studio 知识库否决**。MCP 契约中知识库不是独立工具，而是 `import_tender_files` / `search_evidence` 的可替换实现层（docs/bid-mcp-contract.md 附录 A）。
 
-## 4. 编排引擎逐项裁定
+**理由**：
 
-### 4.1 Dify —— 不采用（核心流程）
-- 证据①（唯一性）：92 个候选中只有 1 家把 Dify 用于标书主流程（llm_bidwriting），且它是 15 家中实现最弱的（无溯源/无矩阵/检查未注入正文/工作流可永久挂起/变量错绑）[复核：3 份 DSL 可解析但需修 bug + 配模型]。
-- 证据②（锁定成本）：DSL 与平台版本绑定，图定义无法 diff/评审/单测；自托管 Dify 引入一套额外运维面。
-- 证据③（能力上限）：其状态持久化（会话变量）无法表达我们的门禁/waiver/失效传播。
-- **可取之处**：3 份 DSL 的节点提示词组织（解析→分章→检查的任务拆分话术）作为 prompt 工程参考；快速演示场景可临时用，不进产品核心。
+| 维度 | A 自建（PGVector/Qdrant+FTS+确定性切块） | B Dify KB API（自托管） | B' Dify Cloud | C Cherry Studio |
+|---|---|---|---|---|
+| 部署重量 | 一个服务+一个向量库（或 PGVector 零新增） | **全家桶容器栈**（重量回来了） | 零部署 | 桌面应用（无服务端） |
+| 数据边界 | ✅ 私有 | ✅ 私有 | ❌ **标书/资质出域，投标业务一票否决（R-09）** | 本地（但仅限单人桌面） |
+| 分块控制 | ✅ 按条款编号结构切块，chunk_id 稳定，证据链可回溯 | ⚠️ 归 Dify：只能靠 create-by-text 逐段注入锚点硬拼 | 同左 | 客户端黑盒 |
+| 精确匹配通道 | ✅ FTS/结构化索引等值查询（编号/型号/金额/日期） | ⚠️ hybrid 可配关键词权重，但无确定性精确保证，混合权重黑盒 | 同左 | — |
+| 版本漂移 | 自控 | ⚠️ 端点命名/参数多次变更（create_by_file→create-by-file），15MB 文件上限需拆分 | 跟随云版本 | — |
+| 许可证 | 自有 | 修改版 Apache2.0（多租户/品牌条款，对外 SaaS 需商业授权） | SaaS 条款 | **AGPL-3.0**（复用其代码传染） |
+| 业界实证 | ark（pgvector+bigram）、rag-tender（FTS5+向量）均为 MIT 可复用 | llm_bidwriting 绑死 0.5.0 | — | 第三方 api-for-cherrystudio 另建 API 反证其客户端定位 |
 
-### 4.2 LangGraph —— 不采用（MVP），语义吸收
-- 证据（bidcraft，唯一 LangGraph 用户）：实践中把 `interrupt()` 人审门移除、图退化为两节点、自动恢复默认关闭 [复核]——说明该领域真正需要的不是"图"，而是"状态+门+检查点"，这些我们用自己的事件溯源+状态机实现，少一个框架依赖、少一层抽象税。
-- **吸收**：`thread_id` 检查点续跑语义 → `get_bid_project_state` 恢复协议；PyMySQLSaver 的"与业务库同库"思路 → ProjectEvent 表同库。
-- **重评触发**：见 §6。
+**关键原则**：**解析和切块是后端确定性代码，Agent 只做编排**（调导入工具、核对统计数字、重试失败件）。"条款因分块遗漏丢失"（R-01）这类最重的风险必须由代码兜底，不能靠模型自觉。
 
-### 4.3 其他（AutoGen/CrewAI/multi-agent 框架）—— 不采用
-- 语料中无一家可信实现；多 Agent 编排叠加在业务状态机之上是冗余层（并发起草用普通任务队列即可，ai_bidding/OpenBidKit/LingYan 均如此）。
+## AD-04 MVP 不引入 LangGraph/图编排框架
 
-## 5. 推荐架构（A 型）组装图
+状态机用"枚举+转换表+乐观锁"实现于后端（bid-domain-model.md §2），不引框架。理由：转换表 ~10 个状态、回退规则 1 条（DIRTY 重跑），LangGraph 的价值（复杂图/并行/人机中断）在此规模下是负资产；换框架成本 = 迁移全部状态语义。**复议条件**：多 Agent 并行起草（>3 个并发写作 Agent）或跨阶段复杂回退图出现时重评（对照 bidcraft）。
 
-```
-[对话模型 + bid-authoring/bid-review Skill]
-        │  MCP（12 个业务工具，见 bid-mcp-contract.md）
-        ▼
-[标书业务后端：状态机 + 事件溯源 + 规则注册表 + 上下文组包 + 混合检索]
-        │  适配器（8 操作最小契约，见 bid-domain-model.md §7）
-        ▼
-[文档内核（独立开发）：文档-块-版本-导出，无标书语义]
-```
-- 流程权威 = 状态机（阶段转换表 + 守卫）；文本权威 = 证据链（REQ/EVL/CMP）；文档权威 = 内核块。
-- 并发模型 = 阶段门串行 + 章节任务并行（普通队列），无需任何编排框架。
+## AD-05 文档内核独立、接口最小、ID 隔离
 
-## 6. 反例与重评触发（诚实边界）
+- 不修改/不替换现有文档内核；经**稳定接口**访问：`create_block / update_block / get_block / render / export`（+ style_profile 概念）。
+- 文档块 ID（DOC-*）由内核签发，业务侧只存 `content_ref` 引用；REQ/EV/SEC 与 DOC 三个命名空间**永不混用、不做映射改写**（用户要求）。
+- 导出产物经 sha256 校验回传；页数统计以 Word 渲染口径为准（claude-bid-gen 实证：LibreOffice 页数不可信）。
 
-**B 型仍然合理的场景（反例）**：招标文件交互问答、开标前快速体检、商机初筛——探索性、低风险、无审计要求；以及"未知流程的早期产品验证"（先 B 后 A 重构）。我们的核心编写链不属于这些场景。
-**A 型失效条件**：若未来出现"每个行业流程拓扑截然不同且频繁变化"（状态机改动率 > 2 次/周持续一个月），或需要终端用户自定义流程编排的产品需求，应重评 LangGraph 作为内部子流程引擎（仍不进核心状态机）。
-**Dify 重评触发**：若业务出现"非技术人员可视化搭工作流"的硬需求——届时 Dify 作为旁挂演示层，核心数据与门禁仍在状态机。
+## AD-06 可测试与可回滚
 
-## 7. 决策记录（ADR 摘要）
-
-| ADR | 决策 | 状态 | 关键依据 |
-|-----|------|------|---------|
-| ADR-01 | 流程控制 = 后端固定状态机（路径 A） | 已采纳 | §2 五维全胜 + §3 实践投票 |
-| ADR-02 | Agent 操作面 = 12 个业务级 MCP 工具 | 已采纳 | tender-cli 反例；业务粒度可长期演进 |
-| ADR-03 | 不采用 Dify（核心） | 已采纳 | §4.1 三条证据 |
-| ADR-04 | 不采用 LangGraph（MVP），吸收 checkpoint 语义 | 已采纳 | bidcraft 复核证据 |
-| ADR-05 | Skill 仅 2 个（主流程+审校），纪律代码化优先 | 已采纳 | kcaaaa 13-Skill 零强制反例 |
-| ADR-06 | 文档内核经 8 操作最小契约隔离 | 已采纳 | OpenBidKit 内核同构 + 任务边界约束 |
-| ADR-07 | 恢复默认开启、失效传播显式建模 | 已采纳 | bidcraft 默认关闭/BidMaster 假恢复反例 |
+1. 每个 MCP 工具一条契约测试（含幂等重放）；状态机转换全覆盖单测。
+2. 合成招标文件埋点回归集（research/test-plan.md）：条款完整性、精确匹配、断点恢复、审校命中四类是发布门禁。
+3. KBAdapter 可切换 → 检索层 A/B（TC-10）不锁定供应商；模型层沿用 biaoshu 的 LiteLLM 统一入口思想（BYOK、可换模型）。
+4. 复用代码白名单仅限 MIT/Apache 仓库（LingYan、rag-tender、tender-master、claude-bid-gen、bidcraft、biaoshu、rejection-check）；AGPL/无许可仓库只读设计不抄代码（R-10）。
