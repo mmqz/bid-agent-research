@@ -1,0 +1,8 @@
+# fixtures 生成与判分环境钉子（determinism 前提：同版本库 + 同字体 → 重生成 sha256 一致，见 scripts/run_tests.py T6）
+# Python 3.12
+python-docx==1.2.0
+reportlab==4.4.9
+openpyxl==3.1.5
+Pillow==11.3.0
+pdfplumber==0.11.9
+pymupdf==1.26.7

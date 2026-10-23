@@ -7,7 +7,7 @@
 
 | 序 | 验证项 | 回答的问题 | 载体 | 状态 |
 |---|---|---|---|---|
-| V0 | 可执行评测夹具 | 测试集能否反复运行、自动判分、回归比对 | §2 | 待建（夹具制作规范） |
+| V0 | 可执行评测夹具 | 测试集能否反复运行、自动判分、回归比对 | §2 | **已建 v0.3（夹具 39 文件确定性生成 + grade.py 七判分项含对齐器防伪对齐/精确率守门 + xref_check.py 宇宙断言 + run_tests.py 17 项全绿；判分器自测含 13 类破坏注入全捕获——R1/R2 双审计后修复固化；测试结果列待 M1 首跑回填）** |
 | V1 | 文件解析→最终 DOCX 导出全链路 | 系统能否从"能生成文本"变成"能交付标书" | §3.1 + docs/doc-engine-audit.md | 待执行 |
 | V2 | 补遗/答疑/版本影响面计算 | 条款变更后哪些证据/矩阵/章节/资格判断必须重查；开标时间变更是否级联更新 | §3.2 + TC-09 | 待执行 |
 | V3 | 文档内核集成边界 | 标书业务与 mdcore 如何共同维护版本与证据关系（不只研究 MCP 调用） | §3.3 + docs/doc-engine-audit.md | 审计已做（doc-engine-audit），原型待建 |
@@ -24,20 +24,25 @@
 
 ```
 fixtures/
-├── corpus-A/                      # 主夹具（test-plan §1：25 埋点回归基准）
-│   ├── files/                     # 原始文件（A.docx / B1.pdf / B2.pdf / B3 / C-补遗.docx / 企业资料 13 件）
+├── corpus-A/                      # 主夹具（test-plan §1：25 埋点回归基准；v0.2 已建成）
+│   ├── files/                     # 原始文件（A.docx / B1.pdf / B2.pdf / B3.xlsx / C-补遗.docx / 企业资料 13 件）
 │   ├── ground-truth/
-│   │   ├── requirements.jsonl     # 标准答案：25 埋点每条 {gt_id, clause_no?, category, 文件+位置(anchor), params, expected_policy}
+│   │   ├── requirements.jsonl     # 标准答案：25 埋点每条 {gt_id, clause_no, category, anchors[](可多文件多锚点), params, expected_policy}
 │   │   ├── evidence-links.jsonl   # 证据期望关联：{gt_id → ev_file, valid_until, 期望矩阵结论(含过期件/缺失项的 not_eligible)}
+│   │   ├── sections.jsonl         # 章节分类法：{id, type, related_gts}（TC-09 影响面断言的引用基准）
 │   │   └── conflicts.json         # 预期冲突对（A/C 双版本报价上限）
-│   ├── expected-transitions/      # 每个 TC 的预期状态转换序列：{tc_id, calls:[工具+参数摘要], assert:[状态机断言]}
-│   └── manifest.json              # 文件 sha256 清单（夹具自身完整性）
-├── corpus-R/                      # 真实结构分布测试集（test-plan §5.1：D1~D6 分层，去标识化）
+│   ├── defect-drafts/             # TC-05 缺陷样本（8 类确定性缺陷草稿 + defect-map.json 映射；草稿内无规则标记）
+│   ├── expected-transitions/       # 每个 TC 的预期状态转换序列：{tc_id, calls:[工具+参数摘要], assert:[状态机断言]}
+│   └── manifest.json              # 全 fixtures 文件 sha256 清单（夹具自身完整性，v0.2 起覆盖 queries/corpus-R）
+├── corpus-R/                      # 真实结构分布测试集（test-plan §5.1：D1~D6 分层，去标识化；V0 占位待建）
 │   └── D1-tables/ D2-nonbody/ D3-revisions/ D4-wording/ D5-scanned/ D6-scale/
 └── queries/
-    ├── exact-25.jsonl             # TC-02 精确查询集（含期望命中 chunk）
+    ├── exact-25.jsonl             # TC-02 精确查询集（含期望命中文本与命中文件）
     └── eval-set.jsonl             # 检索/生成评估集（借 ark evals 结构：valid/invalid-fabrication）
 ```
+
+**反标记回声纪律（v0.2 审计修正）**：语料正文（A/C/缺陷草稿/证据件）内**禁止出现任何 GT/规则标记**——否则抽取器靠标记回声即可虚高召回。判分器（grade.py）召回判定只认**对齐器**（clause_no / 锚点摘录互含 / 唯一参数值），运行产物自报的 gt_id 无法对齐的记 unverified 不计入召回；"标记回声伪造召回"已入判分器破坏注入自测。
+
 
 ### 2.2 判分器（scripts/grade.py，开发于 M1）
 
