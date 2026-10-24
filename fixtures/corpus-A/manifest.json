@@ -1,7 +1,7 @@
 {
   "fixture": "corpus-A (+ queries/corpus-R)",
-  "spec_version": "v0.2",
-  "spec_source": "scripts/fixture_spec.py + research/test-plan.md §1（v0.2 审计修正：去标记、B1 合计≤预算、双锚点、缺陷样本）",
+  "spec_version": "v0.5",
+  "spec_source": "scripts/fixture_spec.py + research/test-plan.md §1（v0.5：v0.2 审计修正 + v0.4 B2 扫描件修复 + corpus-R D1/D2/D5 结构层）",
   "deterministic": true,
   "stats_note": "A.paragraph_blocks 为生成器块计数（非 docx 物理段落数）；B1.rows 为数据行数（物理跨 2 页）",
   "counts": {
@@ -252,8 +252,8 @@
     },
     {
       "path": "corpus-A/expected-transitions/TC-01.json",
-      "sha256": "169e467f12d055a8f3b19931a8e4661514497d9d2ec3b548336eb5f2d70d82fc",
-      "bytes": 3404
+      "sha256": "78f206af4ca1c8e7055242199aa1724f45ab8b10709bc69cefaa4c78a361c97a",
+      "bytes": 3402
     },
     {
       "path": "corpus-A/expected-transitions/TC-02.json",
@@ -322,8 +322,8 @@
     },
     {
       "path": "corpus-A/files/B2-投标函格式页-扫描件.pdf",
-      "sha256": "723e91e4068ed057b92db69df503aa6048615cc4d077c6b468e3aa39139b6319",
-      "bytes": 4978
+      "sha256": "2c81a0016799d48c104be769519261bd31bfde8a4274729360985ceca5465713",
+      "bytes": 100445
     },
     {
       "path": "corpus-A/files/B3-图纸目录.xlsx",
@@ -437,13 +437,13 @@
     },
     {
       "path": "corpus-R/D5-scanned/D5a-全扫描双栏盖章.pdf",
-      "sha256": "4600b8d6ba153bd67a91ba4493a8e7c3f4871fb2d07efab710a69815b478a322",
-      "bytes": 6823
+      "sha256": "c8a17e706df35cdc7d1b8c055ce2477873b470749e300ac31590df20ebb6fe43",
+      "bytes": 70226
     },
     {
       "path": "corpus-R/D5-scanned/D5b-图文混排.pdf",
-      "sha256": "4a6f92891ad4de3893fd51448e07a1d9fa9cef43c3d3f38933de349e9e79332b",
-      "bytes": 5423
+      "sha256": "26ddf2e331a683798ee63ddb27fecfc7e2222f23a07b820b5cebd683e8462c16",
+      "bytes": 82708
     },
     {
       "path": "corpus-R/README.md",

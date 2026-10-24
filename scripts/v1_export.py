@@ -131,12 +131,12 @@ def _page_break(doc):
 
 
 def _make_org_chart_png(path: Path):
-    """确定性实施组织架构图（PIL 绘制，无随机）。"""
+    """确定性实施组织架构图（PIL 绘制，无随机）。静态字体——可变字体 PIL 渲染空白（v0.4 字体事实）。"""
     from PIL import Image, ImageDraw, ImageFont
     W, H = 900, 430
     img = Image.new("RGB", (W, H), (255, 255, 255))
     d = ImageDraw.Draw(img)
-    font = ImageFont.truetype("/usr/share/fonts/truetype/chinese/NotoSansSC[wght].ttf", 20)
+    font = ImageFont.truetype("/usr/share/fonts/truetype/chinese/SarasaMonoSC-Regular.ttf", 20)
     boxes = [(360, 30, 540, 80, "项目经理"),
              (140, 150, 320, 200, "网络组"), (390, 150, 510, 200, "安全组"),
              (580, 150, 760, 200, "实施组"), (200, 290, 380, 340, "质检员"),
@@ -151,6 +151,10 @@ def _make_org_chart_png(path: Path):
         d.line(((x0 + x1) / 2, (80 + y0) // 2 + 10, (x0 + x1) / 2, y0), fill=(60, 60, 60), width=2)
     d.line((300, 200, 300, 290), fill=(60, 60, 60), width=2)
     d.line((610, 200, 610, 290), fill=(60, 60, 60), width=2)
+    # 像素自证（防可变字体静默空白）：节点标签必须真实落在像素层
+    import numpy as np
+    _a = np.asarray(img.convert("L"))
+    assert (_a < 150).sum() >= 1500, f"组织架构图暗像素过少（{(_a < 150).sum()}<1500）——标签未渲染"
     path.parent.mkdir(parents=True, exist_ok=True)
     img.save(path, format="PNG", optimize=True)
 

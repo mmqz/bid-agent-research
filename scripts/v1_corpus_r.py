@@ -36,7 +36,19 @@ from reportlab.pdfgen import canvas as rl_canvas
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from ooxml_util import XLSX_FIXED_CORE, freeze_zip, freeze_docx  # noqa: E402
 
-NOTO_PATH = "/usr/share/fonts/truetype/chinese/NotoSansSC[wght].ttf"
+NOTO_PATH = "/usr/share/fonts/truetype/chinese/SarasaMonoSC-Regular.ttf"
+# 字体事实（v0.4 B2 修复同步）：NotoSansSC[wght].ttf 可变字体在 PIL 下渲染全空白
+# （FreeType 变量轴实例化失败，0 暗像素）——D5 扫描层图像与导出件插图一律用静态
+# 字体，且生成时做像素级自证断言（防“空扫描页”静默溜过）。
+
+
+def _assert_pixels_text(img, min_dark: int, label: str):
+    """像素自证：文字必须真实渲染在像素层（防可变字体静默空白）。"""
+    import numpy as np
+    a = np.asarray(img.convert("L"))
+    dark = int((a < 150).sum())
+    assert dark >= min_dark, f"{label} 暗像素过少（{dark}<{min_dark}）——文字未渲染（可变字体空白回归？）"
+    return dark
 
 CORPUS_R_VERSION = "v0.1（V1-a 首批 D1/D2/D5）"
 
@@ -351,6 +363,8 @@ def gen_d5a(out: Path) -> dict:
     stamp_font = ImageFont.truetype(NOTO_PATH, 34)
     d.text((cx - 52, cy - 60), "示例专用章", fill=(200, 30, 30, 130), font=stamp_font)
     d.text((cx - 46, cy + 10), "（遮挡区域）", fill=(200, 30, 30, 120), font=font_b)
+    # 像素自证（防可变字体静默空白）：双栏文本+印章必须真实落在像素层
+    dark = _assert_pixels_text(img, 20000, "D5a")
 
     c = rl_canvas.Canvas(str(path), pagesize=A4)
     c.setTitle("D5a 全扫描双栏盖章（结构测试件）")
@@ -400,6 +414,8 @@ def gen_d5b(out: Path) -> dict:
     for k in range(10):
         d.text((80, yy), f"序号 {k + 1}｜条款（示例）｜响应：完全响应", fill=(45, 45, 45), font=font_b)
         yy += 52
+    # 像素自证（防可变字体静默空白）：附表文本必须真实落在像素层
+    _assert_pixels_text(img, 8000, "D5b-附表页")
     buf = io.BytesIO()
     img.save(buf, format="PNG", optimize=True)
     buf.seek(0)

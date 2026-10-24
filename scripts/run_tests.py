@@ -95,6 +95,63 @@ def _pdf_text(path: Path) -> str:
     return "\n".join(out)
 
 
+def _norm_cn(s: str) -> str:
+    """OCR 噪声容忍归一化：NFKC（全角→半角）+ 去空白 + 去标点。仅用于 GT↔OCR 对齐，不改变判分纪律。"""
+    import re
+    import unicodedata
+    s = unicodedata.normalize("NFKC", s)
+    return re.sub(r"[\s\W]+", "", s, flags=re.UNICODE)
+
+
+def _b2_ocr_roundtrip(path: Path) -> str:
+    """B2 扫描件 OCR 回读三段验证：像素层有字 → tesseract chi_sim 回读 → 归一化条款包含 + 四要素。
+    返回 'ok' 或失败原因（环境缺 tesseract/chi_sim 属环境契约缺失，判 FAIL 不静默跳过）。"""
+    try:
+        import fitz  # PyMuPDF
+        import numpy as np
+        from PIL import Image
+    except ImportError as e:
+        return f"环境缺依赖：{e}"
+    tess = None
+    for cand in ("/usr/bin/tesseract", "/bin/tesseract"):
+        import os
+        if os.path.exists(cand):
+            tess = cand
+            break
+    if not tess:
+        return "环境契约缺失：tesseract 不可用"
+    tessdata = Path.home() / ".tessdata"
+    if not (tessdata / "chi_sim.traineddata").exists():
+        return "环境契约缺失：chi_sim 语言数据不可用（~/.tessdata）"
+    doc = fitz.open(str(path))
+    imgs = doc[0].get_images(full=True)
+    if not imgs:
+        return "B2 无嵌入图像"
+    pix = fitz.Pixmap(doc, imgs[0][0])
+    img = Image.frombytes("L" if pix.n == 1 else "RGB", (pix.width, pix.height), pix.samples) \
+        if pix.n <= 3 else None
+    if img is None:  # CMYK 等罕见模式 → 走中转
+        pix.save("/tmp/_b2_ocr.png")
+        img = Image.open("/tmp/_b2_ocr.png")
+    a = np.array(img.convert("L"))
+    if int(a.min()) > 60 or (a < 150).sum() < 20000:
+        return f"像素层无有效文字（min={a.min()}, dark={(a < 150).sum()}）——字体渲染失败回归"
+    img.save("/tmp/_b2_ocr_input.png")
+    env = {**__import__("os").environ, "TESSDATA_PREFIX": str(tessdata)}
+    r = subprocess.run([tess, "/tmp/_b2_ocr_input.png", "stdout", "-l", "chi_sim", "--psm", "6"],
+                       capture_output=True, text=True, env=env, timeout=120)
+    if r.returncode != 0:
+        return f"tesseract 失败：{r.stderr.strip()[:80]}"
+    n_ocr = _norm_cn(r.stdout)
+    clause = _norm_cn(S.B2_KEY_CLAUSE)
+    if clause not in n_ocr:
+        return "OCR 未回读出关键条款（归一化包含失败）"
+    missing = [kw for kw in ("投标函", "投标总报价", "盖单位章", "日期") if _norm_cn(kw) not in n_ocr]
+    if missing:
+        return f"OCR 缺要素：{missing}"
+    return "ok"
+
+
 def t_fixture_integrity():
     print("[T3] 夹具完整性（manifest + 结构计数）")
     manifest = json.loads((CORPUS / "manifest.json").read_text(encoding="utf-8"))
@@ -181,6 +238,11 @@ def t_readback():
           and S.DELIVERY_CN in b1_text and b1_text.count("含安装辅材") >= 13)
     check("T4c B2 无文本层（OCR 路径输入特征）+ GT-07 键条款在页面规格中",
           b2_text.strip() == "" and S.B2_KEY_CLAUSE in S.B2_PAGE_TEXT, f"提取到 {len(b2_text.strip())} 字符")
+    # T4c-OCR（v0.4）：扫描件 OCR 通道真实性——嵌入图像须有像素文字 + tesseract 回读关键条款与四要素。
+    # 背景：v0.4 前可变字体静默渲染空白（图像只有公章没有字），OCR 通道建立在空图像上未被任何测试发现。
+    ocr_note = _b2_ocr_roundtrip(files / "B2-投标函格式页-扫描件.pdf")
+    check("T4c-OCR B2 扫描件 OCR 回读（像素层有字 + 条款归一化包含 + 四要素）",
+          ocr_note == "ok", ocr_note if ocr_note != "ok" else "OCR 通道真实可用")
     check("T4d B3 图纸目录 GC-01~GC-20 在位", all(f"GC-{i:02d}" in b3_text for i in range(1, 21)))
     check("T4e 补遗 C 三变更在位（新型号/新开标日/新控制价）",
           S.MODELS["firewall_new"] in c_text and "2026-11-27 09:30" in c_text and "人民币 465 万元（含税）" in c_text)
@@ -242,7 +304,7 @@ def t_v1():
           ca["anchors"]["located"] == 26 and ca["anchors"]["text_layer_total"] == 26
           and ca["anchors"]["scan_deferred"] == 1 and not ca["anchors"]["failures"],
           "; ".join(f"{f['gt_id']}:{f['reason']}" for f in ca["anchors"]["failures"][:3]))
-    check("T7a corpus-R 结构探针 11/11 + G6 归因检出 5/5",
+    check("T7a corpus-R 结构探针 11/11 + G7 归因检出 5/5",
           cr["locatable"]["pass"] == 11 and cr["locatable"]["expect"] == 11
           and cr["gap_attributed"]["detected"] == 5,
           "; ".join(f"{p['probe']}" for p in cr["probes"] if p["status"] == "not_found"))

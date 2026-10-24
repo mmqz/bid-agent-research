@@ -1,0 +1,113 @@
+//! bid-parse —— 确定性解析层（AdapterA 的读面）。
+//!
+//! 引擎适配器约定（组件版本矩阵的钉住点，test-plan §5.2）：
+//! - DOCX：zip + quick-xml 直接走 OOXML（正文/表格，段落级与单元格级）；
+//! - XLSX：calamine；
+//! - PDF 文本层：poppler `pdftotext -layout`（外部引擎适配器，版本由部署清单钉住）；
+//! - PDF 扫描层：poppler `pdftoppm` 渲染 → tesseract chi_sim（OCR 分档，外部引擎适配器）；
+//! - 解析失败/无文本层绝不静默：无文本层 → `has_text_layer=false` + OCR 通道；
+//!   OCR 失败 → 保留空 ocr_blocks 并在 parse_summary 说明（诚实状态）。
+//!
+//! 确定性纪律：同输入文件 → 同输出 blocks（顺序、locator、文本逐字节一致；
+//! 外部引擎版本变化入组件版本矩阵，不属本层自由度）。
+
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+use std::path::Path;
+
+pub mod docx;
+pub mod extract;
+pub mod pdf;
+pub mod xlsx;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum BlockKind {
+    Para,     // DOCX 正文段落
+    TableRow, // DOCX 表格行（cells 逐列）
+    PdfLine,  // PDF 文本层行（pdftotext -layout）
+    OcrLine,  // 扫描件 OCR 行
+    XlsxRow,  // Excel 行
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Block {
+    pub idx: usize, // 文件内序号（chunk_id 稳定性的组成）
+    pub kind: BlockKind,
+    pub locator: String, // 章节/页/行 定位描述
+    pub text: String,    // 行/段落全文（表格行 = 列文本以空格连接）
+    pub cells: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ParsedFile {
+    pub name: String,
+    pub sha256: String,
+    pub pages: usize,
+    pub tables: usize,
+    pub has_text_layer: bool,
+    pub ocr_blocks: usize,
+    pub blocks: Vec<Block>,
+    pub parse_summary: String,
+}
+
+/// 文件类别权重：精确检索的确定性排序因子（主文件权威性优先，防附件/证据同值噪声抢占命中）。
+pub fn kind_rank(file_name: &str) -> u8 {
+    if file_name.starts_with("A-") {
+        0 // 主招标文件
+    } else if file_name.starts_with("C-") {
+        1 // 补遗（后到版本权威）
+    } else if file_name.starts_with("B") {
+        2 // 附件/图纸
+    } else {
+        3 // 证据库
+    }
+}
+
+pub fn sha256_file(path: &Path) -> std::io::Result<String> {
+    let data = std::fs::read(path)?;
+    let mut h = Sha256::new();
+    h.update(&data);
+    Ok(hex::encode(h.finalize()))
+}
+
+/// 统一分发：按扩展名选择解析器。kind（业务类别）仅作语义提示。
+pub fn parse_file(path: &Path, name: &str) -> Result<ParsedFile, String> {
+    let sha256 = sha256_file(path).map_err(|e| format!("读取失败 {name}: {e}"))?;
+    let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
+    match ext.as_str() {
+        "docx" => {
+            let mut pf = docx::parse(path).map_err(|e| format!("docx 解析失败 {name}: {e}"))?;
+            pf.name = name.to_string();
+            pf.sha256 = sha256;
+            Ok(pf)
+        }
+        "xlsx" => {
+            let mut pf = xlsx::parse(path).map_err(|e| format!("xlsx 解析失败 {name}: {e}"))?;
+            pf.name = name.to_string();
+            pf.sha256 = sha256;
+            Ok(pf)
+        }
+        "pdf" => {
+            let mut pf = pdf::parse(path).map_err(|e| format!("pdf 解析失败 {name}: {e}"))?;
+            pf.name = name.to_string();
+            pf.sha256 = sha256;
+            Ok(pf)
+        }
+        other => Err(format!("不支持的文件类型 .{other}（{name}）")),
+    }
+}
+
+// ---------------------------------------------------------------- 归一化（对齐/检索共用）
+/// N1 归一化：NFKC（全角→半角）+ 去全部空白。保留标点（代码/金额语境需要）。
+pub fn norm_n1(s: &str) -> String {
+    use unicode_normalization::UnicodeNormalization;
+    let nfkc: String = s.nfkc().collect();
+    nfkc.chars().filter(|c| !c.is_whitespace()).collect()
+}
+
+/// N2 归一化：N1 + 去标点（OCR 噪声容忍对齐用——标点在 OCR 下不可靠）。
+pub fn norm_n2(s: &str) -> String {
+    let n1 = norm_n1(s);
+    n1.chars().filter(|c| c.is_alphanumeric()).collect()
+}

@@ -473,31 +473,31 @@
         "probe": "D2a-H1",
         "expect": "header_no_locator_variant",
         "status": "parsed_no_locator",
-        "gap": "G6"
+        "gap": "G7"
       },
       {
         "probe": "D2a-F1",
         "expect": "footer_no_locator_variant",
         "status": "parsed_no_locator",
-        "gap": "G6"
+        "gap": "G7"
       },
       {
         "probe": "D2a-T1",
         "expect": "inventoried_no_locator",
         "status": "parsed_no_locator",
-        "gap": "G6"
+        "gap": "G7"
       },
       {
         "probe": "D2a-C1",
         "expect": "inventoried_no_locator",
         "status": "parsed_no_locator",
-        "gap": "G6"
+        "gap": "G7"
       },
       {
         "probe": "D2a-R1",
         "expect": "inventoried_no_locator",
         "status": "parsed_no_locator",
-        "gap": "G6"
+        "gap": "G7"
       },
       {
         "probe": "D5a-P1",
@@ -524,7 +524,7 @@
     "gap_attributed": {
       "expect": 5,
       "detected": 5,
-      "gap": "G6（页眉页脚/文本框/批注/修订——引擎 Locator 无变体，业务侧 M1 同边界）"
+      "gap": "G7（页眉页脚/文本框/批注/修订——引擎 Locator 无变体，业务侧 M1 同边界）"
     }
   }
 }

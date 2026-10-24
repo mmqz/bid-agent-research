@@ -7,8 +7,8 @@
 
 | 序 | 验证项 | 回答的问题 | 载体 | 状态 |
 |---|---|---|---|---|
-| V0 | 可执行评测夹具 | 测试集能否反复运行、自动判分、回归比对 | §2 | **已建 v0.4（夹具 44 文件确定性生成：corpus-A 39 + corpus-R D1/D2/D5 五件 v0.1 + 判分器七判分项含对齐器防伪对齐/精确率守门 + xref_check.py 宇宙断言 + run_tests.py 26 项全绿（v0.4 起新增 T7=V1 四段）；判分器自测含 13 类破坏注入全捕获——R1/R2 双审计后修复固化）** |
-| V1 | 文件解析→最终 DOCX 导出全链路 | 系统能否从"能生成文本"变成"能交付标书" | §3.1 + docs/doc-engine-audit.md | **已执行 v1.0（四段全绿，§3.1 结果；引擎语义仿真 SEMUL 口径——引擎本体 Rust 在验证环境不可执行，定位器/指纹按 CONTRACT 语义 Python 复刻，引擎侧待 M1 接入后升 ENGINE_RUN）** |
+| V0 | 可执行评测夹具 | 测试集能否反复运行、自动判分、回归比对 | §2 | **已建 v0.5（夹具 44 文件确定性生成：corpus-A 39（B2 扫描件修复为真实可 OCR 输入——v0.3 前图像层无字（PIL 可变字体静默空白）且尾字裁切，现静态字体+像素自证断言+T4c-OCR 回读门禁）+ corpus-R D1/D2/D5 五件 v0.1 + 判分器双实现（Rust = bidcore/bid-grade 主判：七判分项+11 类破坏注入+类型化 schema 拒绝；Python grade.py 存档）+ xref_check.py 宇宙断言 + run_tests.py 26 项全绿（17 基线 + T4c-OCR + T7=V1 四段））** |
+| V1 | 文件解析→最终 DOCX 导出全链路 | 系统能否从"能生成文本"变成"能交付标书" | §3.1 + docs/doc-engine-audit.md | **已执行 v1.0 双线全绿（§3.1 结果）：V1-a 双证——① M1 Rust 真跑（bidcore/bid-parse 四通道真跑 corpus-A，TC-01 召回 100%）② V1-a 解析面探针（corpus-A 26/26 + corpus-R 11/11）；V1-b~d 四段验证（引擎 CONTRACT 语义 Python 仿真 SEMUL 口径——引擎本体接入后升 ENGINE_RUN）** |
 | V2 | 补遗/答疑/版本影响面计算 | 条款变更后哪些证据/矩阵/章节/资格判断必须重查；开标时间变更是否级联更新 | §3.2 + TC-09 | 待执行 |
 | V3 | 文档内核集成边界 | 标书业务与 mdcore 如何共同维护版本与证据关系（不只研究 MCP 调用） | §3.3 + docs/doc-engine-audit.md | 审计已做（doc-engine-audit），原型待建 |
 | EXP-1 | Skill+MCP+状态机 vs Dify 工作流最小对照 | AD-01/AD-02 的否决理由从"存在缺陷"升级为"实测维护与恢复成本更低" | §4 | 待执行 |
