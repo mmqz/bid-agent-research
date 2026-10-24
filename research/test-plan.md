@@ -45,6 +45,8 @@
 
 > TC-12 扩展口径已自动化（v1.0，run_tests T7d）：LO 渲染页数硬断言 + 禁字双面扫描（DOCX 全部件 XML + 渲染 PDF 逐页）+ docProps 元数据清零 + 金丝雀防空洞绿。Word/WPS 渲染口径人工复验仍保留（§5.5）——claude-bid-gen 实证 LO 页数与 Word 存在偏差，正式验收以双 Office 口径为准。
 
+> TC-09 已自动化（v1.0，run_tests T8 / scripts/v2_impact.py）：expected-transitions 六断言契约逐条消费 + 主场景 DIRTY 恰三章节 + 开标日级联（GT-02 翻转/EV-13 维持禁绑/零误翻）+ 矛盾终裁门禁（终裁前不得 ACCEPTED）+ 幂等 no-op——影响面规则为设计语义 Python 复刻（SEMUL），删除/新增规则为合成层（D3 真实补遗链入库后替换）。
+
 ## 3. 执行与回归
 
 - **冒烟**（每次代码变更）：TC-01、TC-02、TC-07、TC-11（全自动，无需模型）。

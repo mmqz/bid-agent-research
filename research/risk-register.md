@@ -50,9 +50,9 @@
 |---|---|---|---|---|---|
 | R-01 | AD-03 确定性切块；MCP §2 import 返回统计 | M1 解析与条款（bid-parse/bid-tools） | TC-01 | TESTED | 未编号/附件条款遗漏（L1→核对纪律，corpus-R 真实分布测试集验证）；扫描件 OCR 路径为登记边界非伪装支持（B2/D5a） |
 | R-02 | AD-03 双通道；MCP §5 search_evidence | M1 精确通道（bidcore/bid-kb）；M2 补语义通道 | TC-02 | 待执行 | 语义相关性误判（L3→人工抽检）；语义通道 M2 落地后补测 |
-| R-03 | MCP §5 valid_until 降权；MCP §7 确定性规则 | M2 + M4 | TC-03、TC-05、TC-09 | 待执行 | 有效期基准解释错/选错文件（L2 规则解释 finding） |
+| R-03 | MCP §5 valid_until 降权；MCP §7 确定性规则 | M2 + M4 | TC-03、TC-05、TC-09 | PARTIAL | 有效期基准解释错/选错文件（L2 规则解释 finding）；V2 R2 已验级联语义（SEMUL：基准日变更→全项目重检+精确翻转+零误翻） |
 | R-04 | MCP §6 强制绑定；Skill P6 引用键纪律 | M3 + M5 | TC-03、TC-04 | PARTIAL | 引用存在但内容不支持（L3→ReviewStatus 人工确认） |
-| R-05 | domain-model §2 DIRTY/content_version；MCP 通用 project_version | M1 状态机起 | TC-06、TC-08、TC-09 | PARTIAL | 影响面规则漏判（设计假设→EXP-2 实测） |
+| R-05 | domain-model §2 DIRTY/content_version；MCP 通用 project_version | M1 状态机起 | TC-06、TC-08、TC-09 | PARTIAL | 影响面规则漏判（设计假设→EXP-2 实测；V2 已验设计语义 SEMUL：DIRTY 恰三章节/无关零误伤/终裁门禁/幂等——run_tests T8） |
 | R-06 | MCP §0 幂等策略 | M1（bidcore/bid-domain DomainStore） | TC-07 | TESTED | — |
 | R-07 | AD-06 规则分层；MCP §7 DETERMINISTIC/MODEL | M4 | TC-05 回放 | 待执行 | 模型 finding 假阳干扰（回放集回归） |
 | R-08 | AD-03 KBAdapter；MCP 附录 A | M6（可选） | TC-10 | 待执行 | 对比期检索质量不确定（A/B 结论归档） |
@@ -68,8 +68,9 @@
 
 - **R-01 → TESTED（双证）**：① M1 Rust 端到端（bidcore/bid-parse 四通道真跑 corpus-A，TC-01 召回 100%——160 REQ 全量抽取覆盖 25 GT，cargo test 12 用例全绿）；② V1-a 解析面基座（parse-report v1.0：文本层锚点 26/26 + corpus-R D1/D2/D5 探针 11/11 + 非正文盘点 5/5；run_tests T7a）。
 - **R-06/R-14/R-15 → TESTED**：bidcore/bid-domain DomainStore 幂等 no-op（TC-07）、E_STATE 越级防护（TC-11）、bid-kb 四级确定性排序 tie-breaker（TC-02 精确通道）——cargo test 全绿。
+- **R-03 PARTIAL**：V2 R2 已验有效期级联语义（SEMUL：开标日 11-15→11-27 → 全项目重检；GT-02 EV-02 恰翻转 EXPIRED；EV-13 维持禁绑细项 0 分；其余零误翻；run_tests T8）——TC-03/05 矩阵规则真跑待 M2/M4。
 - **R-04 PARTIAL**：V1-b 定位器两级失效语义已验（SEMUL：10 链回查全 valid + 内容改写恰 1 链 stale_content + 结构漂移全体失效/书签重验恢复；run_tests T7b）——TC-04 引用支持率待 M3。
-- **R-05 PARTIAL**：V1-b GT-18 补遗版本链入引用链（latest_version_wins 落地，正文取调整后型号）——TC-06/08/09 与 EXP-2 影响面矩阵待 V2。
+- **R-05 PARTIAL**：V1-b GT-18 补遗版本链入引用链（latest_version_wins 落地）；V2 影响面规则已验设计语义（SEMUL：TC-09 六断言契约消费 + DIRTY 恰三章节 + 开标日级联全项目重检 + 无关零误伤 + 矛盾终裁门禁 + 幂等 no-op；run_tests T8）——TC-06/08（中断/换模型恢复）待 M2，与 bid-domain Rust 双实现交叉验证待 cargo。
 - **R-11 PARTIAL**：V1-c/d 渲染级已验（LO headless：8 页硬断言 + 分页纪律 + 页眉页脚域；暗标四断言：禁字双面零命中 + docProps 清零 + 金丝雀防空洞绿；run_tests T7c/T7d）——Word/WPS 口径人工复验待（test-plan §5.5）。
 
 **审计问题（Q1~Q10，workflow-audit）→ 风险映射**：Q1→R-01；Q2→R-01/R-02；Q3→R-04/R-07；Q4→R-02/R-15；Q5→R-03/R-04（矩阵闸门）；Q6→R-05；Q7→R-07（规则分界）；Q8→R-05（恢复）；Q9→AD-01/AD-02 实证基础；Q10→R-10。此前 test-plan TC-03/TC-08 直接引用 Q 编号，v2 起统一改为 R 编号（Q 映射保留在本行）。

@@ -348,9 +348,33 @@ def t_v1():
               info["docx_sha256"] == info2["docx_sha256"])
 
 
+# ---------------------------------------------------------------- T8（V2 影响面验证）
+def t_v2():
+    """V2 补遗/答疑/版本影响面计算（verification-plan §3.2）：TC-09 契约消费 +
+    级联完整性 + 无关不重跑 + 矛盾终裁门禁 + 幂等 + 删除/新增规则（影响面规则为
+    bid-domain-model §2 设计语义的 Python 复刻 = SEMUL 口径，交叉验证待 cargo）。"""
+    print("[T8] V2 影响面验证（TC-09 主场景 / 级联 / 无关不重跑 / 终裁门禁 / 幂等 / 规则覆盖）")
+    import v2_impact
+    report = v2_impact.run_v2()
+    r = report["results"]
+    check("T8 TC-09 断言契约全消费（expected-transitions 六断言）",
+          r["R0_tc09_contract"]["pass"])
+    check("T8 主场景 DIRTY 恰三章节 + GT-18 v2 + 冲突双版本登记 + 版本戳恰 +1",
+          r["R1_tc09_main"]["pass"])
+    check("T8 开标日级联：全项目重检 + GT-02 翻转 EXPIRED + EV-13 维持禁绑 + 零误翻",
+          r["R2_cascade"]["pass"])
+    check("T8 无关不重跑：售后/团队/格式三章零误伤",
+          r["R3_no_overreach"]["pass"])
+    check("T8 矛盾终裁门禁：脏阻断→未裁决阻断→终裁后放行 + 口径 465",
+          r["R4_adjudication_gate"]["pass"])
+    check("T8 同 sha 重复导入 no-op（幂等）", r["R5_idempotent"]["pass"])
+    check("T8 删除/新增规则（SYNTHETIC）：绑定解除+行移除恰一章节 / 新增零误伤",
+          r["R6_delete_add_rules"]["pass"])
+
+
 def main() -> int:
     print("=" * 62)
-    print("ai-bid-research 每轮测试（V0 夹具 + 一致性 + 判分器 + V1 四段验证）")
+    print("ai-bid-research 每轮测试（V0 夹具 + 一致性 + 判分器 + V1 四段 + V2 影响面）")
     print("=" * 62)
     t_xref()
     t_fixture_integrity()
@@ -358,6 +382,7 @@ def main() -> int:
     t_grade()
     t_determinism()
     t_v1()
+    t_v2()
     print("-" * 62)
     print(f"结果：{len(_passed)} 通过 / {len(_failed)} 失败")
     if _failed:
