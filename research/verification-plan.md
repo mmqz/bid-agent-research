@@ -7,8 +7,8 @@
 
 | 序 | 验证项 | 回答的问题 | 载体 | 状态 |
 |---|---|---|---|---|
-| V0 | 可执行评测夹具 | 测试集能否反复运行、自动判分、回归比对 | §2 | **已建 v0.3（夹具 39 文件确定性生成 + grade.py 七判分项含对齐器防伪对齐/精确率守门 + xref_check.py 宇宙断言 + run_tests.py 17 项全绿；判分器自测含 13 类破坏注入全捕获——R1/R2 双审计后修复固化；测试结果列待 M1 首跑回填）** |
-| V1 | 文件解析→最终 DOCX 导出全链路 | 系统能否从"能生成文本"变成"能交付标书" | §3.1 + docs/doc-engine-audit.md | 待执行 |
+| V0 | 可执行评测夹具 | 测试集能否反复运行、自动判分、回归比对 | §2 | **已建 v0.4（夹具 44 文件确定性生成：corpus-A 39 + corpus-R D1/D2/D5 五件 v0.1 + 判分器七判分项含对齐器防伪对齐/精确率守门 + xref_check.py 宇宙断言 + run_tests.py 26 项全绿（v0.4 起新增 T7=V1 四段）；判分器自测含 13 类破坏注入全捕获——R1/R2 双审计后修复固化）** |
+| V1 | 文件解析→最终 DOCX 导出全链路 | 系统能否从"能生成文本"变成"能交付标书" | §3.1 + docs/doc-engine-audit.md | **已执行 v1.0（四段全绿，§3.1 结果；引擎语义仿真 SEMUL 口径——引擎本体 Rust 在验证环境不可执行，定位器/指纹按 CONTRACT 语义 Python 复刻，引擎侧待 M1 接入后升 ENGINE_RUN）** |
 | V2 | 补遗/答疑/版本影响面计算 | 条款变更后哪些证据/矩阵/章节/资格判断必须重查；开标时间变更是否级联更新 | §3.2 + TC-09 | 待执行 |
 | V3 | 文档内核集成边界 | 标书业务与 mdcore 如何共同维护版本与证据关系（不只研究 MCP 调用） | §3.3 + docs/doc-engine-audit.md | 审计已做（doc-engine-audit），原型待建 |
 | EXP-1 | Skill+MCP+状态机 vs Dify 工作流最小对照 | AD-01/AD-02 的否决理由从"存在缺陷"升级为"实测维护与恢复成本更低" | §4 | 待执行 |
@@ -34,8 +34,10 @@ fixtures/
 │   ├── defect-drafts/             # TC-05 缺陷样本（8 类确定性缺陷草稿 + defect-map.json 映射；草稿内无规则标记）
 │   ├── expected-transitions/       # 每个 TC 的预期状态转换序列：{tc_id, calls:[工具+参数摘要], assert:[状态机断言]}
 │   └── manifest.json              # 全 fixtures 文件 sha256 清单（夹具自身完整性，v0.2 起覆盖 queries/corpus-R）
-├── corpus-R/                      # 真实结构分布测试集（test-plan §5.1：D1~D6 分层，去标识化；V0 占位待建）
-│   └── D1-tables/ D2-nonbody/ D3-revisions/ D4-wording/ D5-scanned/ D6-scale/
+├── corpus-R/                      # 真实结构分布测试集（v0.1 已建 D1/D2/D5 三层共 5 件——确定性合成，复刻结构特征；D3/D4/D6 待真实样本去标识化）
+│   ├── D1-tables/    D1a 合并表头跨页表.docx + D1b 宽表公式.xlsx
+│   ├── D2-nonbody/   D2a 非正文条款.docx（页眉页脚条款/文本框/批注/修订）
+│   └── D5-scanned/   D5a 全扫描双栏盖章.pdf + D5b 图文混排.pdf
 └── queries/
     ├── exact-25.jsonl             # TC-02 精确查询集（含期望命中文本与命中文件）
     └── eval-set.jsonl             # 检索/生成评估集（借 ark evals 结构：valid/invalid-fabrication）
@@ -69,12 +71,23 @@ fixtures/
 
 | 段 | 验证点 | 方法 | 现有依据 |
 |---|---|---|---|
-| V1-a 解析覆盖 | DOCX/PDF（文本层/扫描层）/Excel/图纸附件的解析、定位、引用是否全覆盖 | corpus-R D1/D2/D5 分层跑；每文件输出 parse_report（页/表/失败位置）人工抽验 20% | R-01 缓解设计；引擎侧 DOCX 读面能力清单 = doc-engine-audit §2.5（页眉页脚六槽位已读、文本框/批注/修订是登记缺口 G6） |
+| V1-a 解析覆盖 | DOCX/PDF（文本层/扫描层）/Excel/图纸附件的解析、定位、引用是否全覆盖 | corpus-R D1/D2/D5 分层跑；每文件输出 parse_report（页/表/失败位置）人工抽验 20% | R-01 缓解设计；引擎侧 DOCX 读面能力清单 = doc-engine-audit §2.5（页眉页脚六槽位已读、文本框/批注/修订是登记缺口 G7） |
 | V1-b 引用回填 | 证据/条款引用从检索命中回填到正文块，导出后仍可定位 | 造 10 条"条款→证据→正文引用"链，导出后用引擎定位器回查（Locator::DocxParagraph/MarkdownBlock 指纹） | 引擎锚点写面已实施（bookmark_paragraph，doc-engine-audit §2.6） |
-| V1-c 导出保真 | 表格/页眉页脚/图片/分页/签章位/目录/模板格式 | 导出件过 Office 复验（test-plan §5.5：Word+WPS 人工 + LO headless 渲染级自动断言） | 引擎 office-f C 路线 spike：B 样本 5 分页符恰 6 页硬断言全过（doc-engine-audit G8） |
+| V1-c 导出保真 | 表格/页眉页脚/图片/分页/签章位/目录/模板格式 | 导出件过 Office 复验（test-plan §5.5：Word+WPS 人工 + LO headless 渲染级自动断言） | 引擎 office-f C 路线 spike：B 样本 5 分页符恰 6 页硬断言全过（doc-engine-audit G6） |
 | V1-d 页数与格式口径 | 暗标页数上限、字体页边距断言 | TC-12 扩展：Word 渲染口径页数 + 禁字扫描 + docProps 元数据清零断言 | claude-bid-gen 实证 LO 页数不可信；引擎缺口 G2/G3（样式面/元数据清零） |
 
 **通过标准**：corpus-A 100% + corpus-R 各层 ≥90%（首轮允许记录差距）；V1-c 双 Office 零格式违规；V1-d 暗标全断言通过。**不通过的项按缺口归属回填 doc-engine-audit 差距矩阵（引擎侧）或风险册（业务侧）**。
+
+**执行结果（v1.0，2026-10-24，脚本 scripts/v1_*.py，证据 artifacts/v1/，回归入口 run_tests T7）**：
+
+| 段 | 结果 | 关键断言 | 发现与归因 |
+|---|---|---|---|
+| V1-a 解析覆盖 | **全绿** | corpus-A 文本层锚点 **26/26**（扫描层 1 条 OCR 路径登记不伪装）+ corpus-R 结构探针 **11/11**（合并表头/公式双通道/无文本层三态判定）+ 非正文盘点 **5/5** | 页眉页脚条款可读但 **Locator 无 header/footer 变体**；文本框/批注/修订 naive 正文遍历不可见（raw XML 才可盘点）→ 回填 doc-engine-audit **G7**（非正文结构读面与定位器） |
+| V1-b 引用回填 | **全绿** | 10 条"条款→证据→正文引用"链导出后定位器回查全 valid（位置+指纹两级）；内容改写恰致 1 链 stale_content（只降不升）；删除更早段致索引型定位器 **10/10 全体漂移失效**，CIT- 书签再寻址 + 显式重验（reverify_claim 语义）恢复 valid | 索引型定位器结构脆弱性实证（doc-engine-audit §2.1 结论运行时验证）→ 验证引擎 ByAnchor/BlockId + 显式重验通道设计必要性；GT-18 补遗版本链入链（latest_version_wins 落地） |
+| V1-c 导出保真 | **全绿** | 结构读回（书签 10/TOC/PAGE/NUMPAGES 域/图片/分页 7/合并表/双分节/盖章位）+ LO headless 渲染：**8 页硬断言**、每章节起新页、页眉正文页全在且封面页无、页脚页码域逐页渲染、图片绘制在技术方案页、引用文本可见 | Word+WPS 人工复验为待人工步骤（环境不可执行，test-plan §5.5 协议保留）；G6 渲染复验从 spike 升 **TESTED**（业务侧复验管道固化于测试套件） |
+| V1-d 页数与格式口径 | **全绿** | LO 渲染口径页数 8 ≤ 上限 200 且明暗一致；禁字双面零命中（DOCX 全部件 XML + 渲染 PDF 逐页）；docProps 清零（creator/lastModifiedBy 空 + app.xml Company 移除 + PDF author 空）；金丝雀 3 处检出防空洞绿 | G3 引擎侧缺口仍开，**业务侧缓解已验**（zip 层补丁为过渡，暗标红线终需引擎导出面产品化）；G1 同构先例增强（TOC/PAGE/NUMPAGES 域 LO 渲染通过） |
+
+**口径声明**：V1-b/V1-c 的定位器与指纹为引擎 CONTRACT 语义的 Python 仿真（ooxml_util，FNV-1a 64 公开向量对齐）——验证的是**链路设计与判定语义**，引擎本体接入后的运行时行为属 M1+ ENGINE_RUN 口径；双 Office 复验待人工。
 
 ### 3.2 V2：补遗/答疑/版本影响面计算
 
@@ -148,6 +161,7 @@ fixtures/
 |---|---|---|
 | `VERIFIED_SOURCE` | 结论有开源仓库源码/官方文档一手证据（引用带仓库+commit+文件路径） | workflow-audit、repository-matrix、doc-engine-audit |
 | `TESTED` | 本项目已实测（实验/测试有报告与复现脚本） | verification-plan 各 V*/EXP*、test-plan 执行后回填 |
+| `PARTIAL` | 部分已验（v1.0 新增）：对应链路的一段已自动验证，其余待后续阶段——细节入 risk-register 追溯矩阵注记块，不得整段标 TESTED | 追溯矩阵"测试结果"列（R-01/R-04/R-05/R-11 首批）、各 V* 分段状态 |
 | `DESIGN_ASSUMPTION` | 设计推断，未经实现验证——可能被实测推翻 | 各设计文档中待验机制（如影响面规则完备性） |
 | `PENDING` | 计划中，未开始 | 本计划全部条目当前态 |
 

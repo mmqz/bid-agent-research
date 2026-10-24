@@ -38,58 +38,19 @@ from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, Tabl
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import fixture_spec as S  # noqa: E402
+from ooxml_util import FREEZE_DATE, XLSX_FIXED_CORE, freeze_zip, sha256_file, write_json, write_jsonl  # noqa: E402, F401
+import v1_corpus_r  # noqa: E402  corpus-R D1/D2/D5 结构层（V1-a，verification-plan §3.1）
 
 REPO = Path(__file__).resolve().parent.parent
 FIXTURES = REPO / "fixtures"
-FREEZE_DATE = (1980, 1, 1, 0, 0, 0)  # zip 冻结时间戳
 
 pdfmetrics.registerFont(UnicodeCIDFont("STSong-Light"))
 CN_FONT = "STSong-Light"
 NOTO_PATH = "/usr/share/fonts/truetype/chinese/NotoSansSC[wght].ttf"  # 变量字体（Regular 实例损坏时可用）
 
 
-# ---------------------------------------------------------------- 通用工具
-def freeze_zip(path: Path, patches: dict[str, bytes] | None = None):
-    """重写 zip 归档：固定时间戳 + 固定条目顺序 + 可选条目内容补丁 → 字节级确定性。
-    （openpyxl 的 ExcelWriter 会在 save 时强制写入当前时间到 docProps/core.xml——
-     其 modified 属性无法通过 wb.properties 预置，只能在归档层修补。）"""
-    patches = patches or {}
-    tmp = path.with_suffix(path.suffix + ".tmp")
-    with zipfile.ZipFile(path, "r") as zin, \
-         zipfile.ZipFile(tmp, "w", compression=zipfile.ZIP_DEFLATED) as zout:
-        for info in sorted(zin.infolist(), key=lambda i: i.filename):
-            data = patches.get(info.filename) or zin.read(info.filename)
-            zi = zipfile.ZipInfo(info.filename, date_time=FREEZE_DATE)
-            zi.compress_type = zipfile.ZIP_DEFLATED
-            zi.external_attr = info.external_attr
-            zout.writestr(zi, data)
-    tmp.replace(path)
-
-
-XLSX_FIXED_CORE = (b'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\r\n'
-                   b'<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" '
-                   b'xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" '
-                   b'xmlns:dcmitype="http://purl.org/dc/dcmitype/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">'
-                   b'<dc:creator>ai-bid-research fixture</dc:creator><cp:lastModifiedBy>ai-bid-research fixture</cp:lastModifiedBy>'
-                   b'<dcterms:created xsi:type="dcterms:W3CDTF">2026-10-16T09:00:00Z</dcterms:created>'
-                   b'<dcterms:modified xsi:type="dcterms:W3CDTF">2026-10-16T09:00:00Z</dcterms:modified>'
-                   b'</cp:coreProperties>')
-
-
-def sha256_file(path: Path) -> str:
-    h = hashlib.sha256()
-    h.update(path.read_bytes())
-    return h.hexdigest()
-
-
-def write_jsonl(path: Path, rows: list[dict]):
-    with path.open("w", encoding="utf-8") as f:
-        for row in rows:
-            f.write(json.dumps(row, ensure_ascii=False) + "\n")
-
-
-def write_json(path: Path, data):
-    path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+# freeze_zip / XLSX_FIXED_CORE / sha256_file / write_json / write_jsonl
+# 自 ooxml_util 导入（V1 抽取共享——字节行为不变，T6 哈希回归把关）
 
 
 # ---------------------------------------------------------------- A / C DOCX
@@ -402,20 +363,12 @@ def gen_manifest(fixtures_root: Path, stats: dict):
     return manifest
 
 
-CORPUS_R_README = """# corpus-R：真实结构分布测试集（占位）
+CORPUS_R_README_PLACEHOLDER = """# corpus-R：真实结构分布测试集
 
-按 research/test-plan.md §5.1 与 verification-plan §3 建设计划分层（每层 ≥3 件、总数 ≥15 件起步，全部去标识化）：
-
-- D1-tables/  表格失真：PDF 转换表格错位、Word 跨页表格、合并单元格嵌套条款
-- D2-nonbody/ 非正文条款：页眉/页脚/脚注/文本框中的限制条款、附件内独立编号体系
-- D3-revisions/ 多版本修订链：补遗/答疑/澄清多次修改、相互矛盾、部分撤销
-- D4-wording/ 表述漂移：同一要求不同表达、无固定编号、口语化、"参照执行"类引用
-- D5-scanned/ 扫描与混合件：全扫描、图文混排、盖章遮挡、双栏排版（OCR 分档）
-- D6-scale/  超长超大：500 页级正文、附件图纸包、Excel 量价清单
-
-来源纪律：仅公开招标公告/文件（中国政府采购网、地方交易中心公开件）去标识化构造——
-去除投标人/评审人信息，保留版式与条款结构；入库登记来源 URL 与抓取日期。
-本目录当前为 V0 占位，corpus-A 主回归夹具先行（见 verification-plan §2.1）。
+v0.1（V1-a 首批）：D1-tables / D2-nonbody / D5-scanned 三结构层已建（确定性合成——
+复刻真实件的**结构特征**而非内容；去标识化纪律自动满足：无任何真实主体信息）。
+D3-revisions / D4-wording / D6-scale 三层待真实样本去标识化后补建（见 README 由
+v1_corpus_r 生成时的展开说明）。完整分层定义：research/test-plan.md §5.1。
 """
 
 
@@ -426,9 +379,6 @@ def main():
     corpus = out / "corpus-A"
     files_dir = corpus / "files"
     files_dir.mkdir(parents=True, exist_ok=True)
-    (out / "corpus-R").mkdir(parents=True, exist_ok=True)
-    (out / "corpus-R" / "README.md").write_text(CORPUS_R_README, encoding="utf-8")
-
     stats = {}
     stats["A"] = gen_a_docx(files_dir)
     stats["C"] = gen_c_docx(files_dir)
@@ -440,6 +390,7 @@ def main():
     stats["defect_drafts"] = gen_defect_drafts(corpus)
     stats["transitions"] = gen_transitions(corpus)
     stats["queries"] = gen_queries(out / "queries")
+    stats["corpus_r"] = v1_corpus_r.gen_corpus_r(out / "corpus-R")
     manifest = gen_manifest(out, stats)
 
     print(json.dumps({

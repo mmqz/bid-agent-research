@@ -21,12 +21,15 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import fixture_spec as S  # noqa: E402
+import v1_corpus_r as R  # noqa: E402
 
 REPO = Path(__file__).resolve().parent.parent
 FIXTURES = REPO / "fixtures"
 CORPUS = FIXTURES / "corpus-A"
 # 期望文件数从规格派生（R2 P2-2：不再双处硬编码）
-EXPECTED_MANIFEST_FILES = (5 + len(S.EVIDENCE_FILES) + 4 + len(S.TRANSITIONS) + 2 + 2 + 1)
+#   5 主文件 + 13 证据 + 4 GT + 12 转换 + 2 查询集 + 2 缺陷草稿 + 1 corpus-R README + 5 corpus-R 结构层
+EXPECTED_MANIFEST_FILES = (5 + len(S.EVIDENCE_FILES) + 4 + len(S.TRANSITIONS) + 2 + 2 + 1
+                           + len(R.OUTPUT_FILES))
 _RULE_CODES = ["CERT_EXPIRED", "PRICE_EXCEEDS_BUDGET", "DURATION_MISMATCH", "PAGE_LIMIT",
                "MISSING_SIGNATURE", "DARK_BID_WORD", "TODO_RESIDUE", "INJECTION_PATTERN"]
 _ECHO_RE = None  # 延迟编译（防 import 顺序）
@@ -222,15 +225,77 @@ def t_determinism():
               not diff and len(f1) == len(f2) == EXPECTED_MANIFEST_FILES, "; ".join(diff[:3]))
 
 
+# ---------------------------------------------------------------- T7（V1 四段验证）
+def t_v1():
+    """V1 全链路四段验证（verification-plan §3.1）：解析覆盖→引用回填→导出保真→暗标口径。
+    共享一个临时目录：明标件构建一次供 T7b/c/d/e 复用（LO 渲染 3 次，约 15s）。"""
+    print("[T7] V1 四段验证（解析覆盖 / 引用回填 / 导出保真 / 暗标口径）")
+    import v1_citation
+    import v1_darkbid
+    import v1_export
+    import v1_pipeline
+
+    # T7a 解析覆盖
+    rep_a = v1_pipeline.build_parse_report()
+    ca, cr = rep_a["corpus_a"], rep_a["corpus_r"]
+    check("T7a corpus-A 文本层锚点 26/26 + 扫描层登记 1（B2 OCR 路径）",
+          ca["anchors"]["located"] == 26 and ca["anchors"]["text_layer_total"] == 26
+          and ca["anchors"]["scan_deferred"] == 1 and not ca["anchors"]["failures"],
+          "; ".join(f"{f['gt_id']}:{f['reason']}" for f in ca["anchors"]["failures"][:3]))
+    check("T7a corpus-R 结构探针 11/11 + G6 归因检出 5/5",
+          cr["locatable"]["pass"] == 11 and cr["locatable"]["expect"] == 11
+          and cr["gap_attributed"]["detected"] == 5,
+          "; ".join(f"{p['probe']}" for p in cr["probes"] if p["status"] == "not_found"))
+
+    with tempfile.TemporaryDirectory() as td:
+        td = Path(td)
+        bright = td / "技术标-导出样本.docx"
+        dark = td / "技术标-暗标样本.docx"
+        info = v1_export.build_bid_docx(bright, "bright", workdir=td)
+        v1_export.build_bid_docx(dark, "dark", workdir=td)
+
+        # T7b 引用回填
+        rep_b = v1_citation.run_citation_checks(bright, td)
+        check("T7b 引用链 10 条回查全 valid（位置+指纹两级）", rep_b["R1_recheck"]["pass"])
+        check("T7b 内容改写恰致 1 链 stale_content（其余 valid，只降不升）",
+              rep_b["R2_content_stale"]["pass"])
+        check("T7b 结构漂移致索引型定位器全体失效 + 书签重验恢复",
+              rep_b["R3_structure_drift"]["pass"] and rep_b["R3b_bookmark_rebind"]["pass"])
+
+        # T7c 导出保真
+        rep_c = v1_export.run_fidelity_checks(bright, td / "lo_c")
+        st, rd = rep_c["structure"], rep_c["render"]
+        check("T7c 结构读回（书签10/域/图片/分页7/合并表/双分节/盖章位）",
+              all(st.values()), "; ".join(k for k, v in st.items() if not v))
+        check(f"T7c LO 渲染（{rd['pages']} 页：分页纪律/页眉页脚/图片在技术方案页/引用可见）",
+              all(v for k, v in rd.items() if k != "pages"),
+              "; ".join(k for k, v in rd.items() if k != "pages" and not v))
+
+        # T7d 暗标口径
+        rep_d = v1_darkbid.run_darkbid_checks(dark, bright, td)
+        check(f"T7d 暗标四断言（页数 {rep_d['D1_pages']['pages']}≤上限且明暗一致 / 禁字双面零命中 / "
+              f"元数据清零 / 金丝雀检出 {len(rep_d['D4_canary']['hits'])} 处防空洞绿）",
+              rep_d["pass"],
+              json.dumps({k: rep_d[k] for k in ("D2_forbidden_scan", "D3_metadata_zeroing")},
+                         ensure_ascii=False)[:150] if not rep_d["pass"] else "")
+
+        # T7e 导出件确定性（freeze_docx 字节级）
+        again = td / "again.docx"
+        info2 = v1_export.build_bid_docx(again, "bright", workdir=td)
+        check("T7e 明标导出件重生成 sha256 一致（确定性）",
+              info["docx_sha256"] == info2["docx_sha256"])
+
+
 def main() -> int:
     print("=" * 62)
-    print("ai-bid-research 每轮测试（V0 夹具 + 一致性 + 判分器）")
+    print("ai-bid-research 每轮测试（V0 夹具 + 一致性 + 判分器 + V1 四段验证）")
     print("=" * 62)
     t_xref()
     t_fixture_integrity()
     t_readback()
     t_grade()
     t_determinism()
+    t_v1()
     print("-" * 62)
     print(f"结果：{len(_passed)} 通过 / {len(_failed)} 失败")
     if _failed:
