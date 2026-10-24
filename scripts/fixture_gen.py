@@ -45,7 +45,11 @@ FREEZE_DATE = (1980, 1, 1, 0, 0, 0)  # zip 冻结时间戳
 
 pdfmetrics.registerFont(UnicodeCIDFont("STSong-Light"))
 CN_FONT = "STSong-Light"
-NOTO_PATH = "/usr/share/fonts/truetype/chinese/NotoSansSC[wght].ttf"  # 变量字体（Regular 实例损坏时可用）
+# P0 修复（v0.4，墨量审计发现）：NotoSansSC[wght].ttf 变量字体在 PIL 下静默零墨渲染
+# （draw() 调用正常返回但画布上无任何像素——gen_b2_pdf 旧自证只核对了绘制调用列表，
+#  未核对画布墨量，导致 B2 扫描件除公章外全白，GT-07 OCR 锚点不可恢复）。
+# 换用静态 SarasaMonoSC-Regular，并在 gen_b2_pdf 增加逐行墨量像素自证。
+SCAN_FONT_PATH = "/usr/share/fonts/truetype/chinese/SarasaMonoSC-Regular.ttf"
 
 
 # ---------------------------------------------------------------- 通用工具
@@ -207,9 +211,9 @@ def gen_b2_pdf(out: Path):
     W, H = 1240, 1754  # A4 @150dpi
     img = Image.new("L", (W, H), 248)  # 浅灰底模拟纸张
     d = ImageDraw.Draw(img)
-    font_t = ImageFont.truetype(NOTO_PATH, 64)
-    font_h = ImageFont.truetype(NOTO_PATH, 36)
-    font_b = ImageFont.truetype(NOTO_PATH, 28)
+    font_t = ImageFont.truetype(SCAN_FONT_PATH, 64)
+    font_h = ImageFont.truetype(SCAN_FONT_PATH, 36)
+    font_b = ImageFont.truetype(SCAN_FONT_PATH, 28)
 
     def center(text, y, font, fill=30):
         w = d.textlength(text, font=font)
@@ -217,19 +221,38 @@ def gen_b2_pdf(out: Path):
 
     y = 120
     drawn: list[str] = []  # R2 P0-7：逐行收集实际绘制文本，生成时与规格自证
-    center(S.B2_TITLE, y, font_t); drawn.append(S.B2_TITLE); y += 84
-    center(S.B2_SUBTITLE, y, font_h); drawn.append(S.B2_SUBTITLE); y += 70
+    bands: list[tuple[int, int, str]] = []  # v0.4 墨量自证：(band_y0, band_y1, text)
+
+    def _ink(b0: int, b1: int) -> int:
+        return sum(1 for yy in range(b0, b1) for xx in range(W) if img.getpixel((xx, yy)) < 200)
+
+    center(S.B2_TITLE, y, font_t); drawn.append(S.B2_TITLE)
+    bands.append((y - 6, y + 84 - 6, S.B2_TITLE)); y += 84
+    center(S.B2_SUBTITLE, y, font_h); drawn.append(S.B2_SUBTITLE)
+    bands.append((y - 6, y + 70 - 6, S.B2_SUBTITLE)); y += 70
     # GT-07 扫描件锚点条款（图像形式存在——OCR 通道须抽取到）
-    d.text((90, y), S.B2_KEY_CLAUSE, fill=30, font=font_b); drawn.append(S.B2_KEY_CLAUSE); y += 56
+    # v0.4：clause 行 41 字符 28px 起笔 x=90 距右缘仅 2px，行尾字符易被 OCR 切割——起点左移至 x=50
+    d.text((50, y), S.B2_KEY_CLAUSE, fill=30, font=font_b); drawn.append(S.B2_KEY_CLAUSE)
+    bands.append((y - 6, y + 56 - 6, S.B2_KEY_CLAUSE)); y += 56
     for text in S.B2_BODY_LINES:
-        d.text((90, y), text, fill=30, font=font_b); drawn.append(text); y += 44
+        d.text((90, y), text, fill=30, font=font_b); drawn.append(text)
+        bands.append((y - 6, y + 44 - 6, text)); y += 44
     y += 40
     for text in S.B2_SIGN_LINES:
-        d.text((110, y), text, fill=30, font=font_b); drawn.append(text); y += 80
-    # 自证：实际绘制内容必须与规格逐行一致——防止未来改绘制不改规格（或反之）而不被发现
+        d.text((110, y), text, fill=30, font=font_b); drawn.append(text)
+        bands.append((y - 6, y + 80 - 6, text)); y += 80
+    # 自证 1：实际绘制内容必须与规格逐行一致——防止改绘制不改规格（或反之）而不被发现
     expected_lines = [S.B2_TITLE, S.B2_SUBTITLE, S.B2_KEY_CLAUSE, *S.B2_BODY_LINES, *S.B2_SIGN_LINES]
     assert drawn == expected_lines, f"B2 绘制内容与规格漂移：{[a for a, b in zip(drawn, expected_lines) if a != b][:2]}"
     assert all(line in S.B2_PAGE_TEXT for line in drawn), "B2 绘制行未全部落在 B2_PAGE_TEXT 规格内"
+    # 自证 2（v0.4 P0 修复）：逐行墨量像素审计——绘制调用成功 ≠ 画布有墨。
+    # 旧版在此缺口下用零墨变量字体生成了全白页面（仅公章可见），GT-07 OCR 锚点荡然无存。
+    # 阈值下限 max(20×字数, 120)：Sarasa 28px 每字约 600 墨像素，宽裕但足以拦截静默零墨。
+    for b0, b1, text in bands:
+        ink = _ink(b0, b1)
+        assert ink >= max(20 * len(text), 120), f"B2 行『{text[:18]}…』墨量 {ink} 异常（疑似字体静默零墨渲染）"
+    total_text_ink = sum(_ink(b0, b1) for b0, b1, _ in bands)
+    assert total_text_ink >= 30_000, f"B2 文本区总墨量 {total_text_ink} 过低，扫描件图像不可用"
     # 红色公章（椭圆占位，扫描件特征）
     d.ellipse((830, 1040, 1150, 1360), outline=120, width=6)
     for i in range(5):
