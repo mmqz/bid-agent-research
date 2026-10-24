@@ -45,7 +45,10 @@ FREEZE_DATE = (1980, 1, 1, 0, 0, 0)  # zip 冻结时间戳
 
 pdfmetrics.registerFont(UnicodeCIDFont("STSong-Light"))
 CN_FONT = "STSong-Light"
-NOTO_PATH = "/usr/share/fonts/truetype/chinese/NotoSansSC[wght].ttf"  # 变量字体（Regular 实例损坏时可用）
+NOTO_PATH = "/usr/share/fonts/truetype/chinese/SarasaMonoSC-Regular.ttf"
+# 字体事实记录（2026-10-24 发现）：NotoSansSC[wght].ttf 可变字体在 PIL 下渲染为全空白
+# （FreeType 变量轴实例化失败——0 个暗像素），B2 曾因此生成“只有公章没有文字”的空扫描页；
+# reportlab+B1 不受影响（用内置 CID 字体）。B2 改用静态字体 + 像素级自证断言。
 
 
 # ---------------------------------------------------------------- 通用工具
@@ -211,30 +214,77 @@ def gen_b2_pdf(out: Path):
     font_h = ImageFont.truetype(NOTO_PATH, 36)
     font_b = ImageFont.truetype(NOTO_PATH, 28)
 
-    def center(text, y, font, fill=30):
-        w = d.textlength(text, font=font)
-        d.text(((W - w) / 2, y), text, fill=fill, font=font)
+    def wrap(text: str, font, max_w: int, indent: str = "") -> list[str]:
+        """按像素宽度断行（逐字符累积——CJK 无空格分词；续行加缩进保持视觉层级）。"""
+        lines, cur, cur_w = [], "", 0.0
+        indent_w = d.textlength(indent, font=font) if indent else 0.0
+        first = True
+        for ch in text:
+            cw = d.textlength(ch, font=font)
+            budget = max_w if first else max_w - indent_w
+            if cur and cur_w + cw > budget:
+                lines.append(cur)
+                cur, cur_w, first = indent + ch, indent_w + cw, False
+            else:
+                cur += ch
+                cur_w += cw
+        if cur:
+            lines.append(cur)
+        return lines
 
-    y = 120
     drawn: list[str] = []  # R2 P0-7：逐行收集实际绘制文本，生成时与规格自证
-    center(S.B2_TITLE, y, font_t); drawn.append(S.B2_TITLE); y += 84
-    center(S.B2_SUBTITLE, y, font_h); drawn.append(S.B2_SUBTITLE); y += 70
-    # GT-07 扫描件锚点条款（图像形式存在——OCR 通道须抽取到）
-    d.text((90, y), S.B2_KEY_CLAUSE, fill=30, font=font_b); drawn.append(S.B2_KEY_CLAUSE); y += 56
+    source_lines: list[str] = []  # v0.4：wrap 后按源行分组自证（拼接无丢字）
+    y = 120
+    for seg in wrap(S.B2_TITLE, font_t, W - 80):
+        w = d.textlength(seg, font=font_t)
+        d.text(((W - w) / 2, y), seg, fill=30, font=font_t); drawn.append(seg); y += 84
+    source_lines.append(S.B2_TITLE)
+    for seg in wrap(S.B2_SUBTITLE, font_h, W - 80):
+        w = d.textlength(seg, font=font_h)
+        d.text(((W - w) / 2, y), seg, fill=30, font=font_h); drawn.append(seg); y += 70
+    source_lines.append(S.B2_SUBTITLE)
+    # GT-07 扫描件锚点条款（图像形式存在——OCR 通道须抽取到）；v0.4：断行防右缘裁字
+    for seg in wrap(S.B2_KEY_CLAUSE, font_b, W - 90 - 50):
+        d.text((90, y), seg, fill=30, font=font_b); drawn.append(seg); y += 40
+    source_lines.append(S.B2_KEY_CLAUSE)
     for text in S.B2_BODY_LINES:
-        d.text((90, y), text, fill=30, font=font_b); drawn.append(text); y += 44
+        for seg in wrap(text, font_b, W - 90 - 50, indent="　"):
+            d.text((90, y), seg, fill=30, font=font_b); drawn.append(seg); y += 40
+        source_lines.append(text)
     y += 40
     for text in S.B2_SIGN_LINES:
-        d.text((110, y), text, fill=30, font=font_b); drawn.append(text); y += 80
-    # 自证：实际绘制内容必须与规格逐行一致——防止未来改绘制不改规格（或反之）而不被发现
-    expected_lines = [S.B2_TITLE, S.B2_SUBTITLE, S.B2_KEY_CLAUSE, *S.B2_BODY_LINES, *S.B2_SIGN_LINES]
-    assert drawn == expected_lines, f"B2 绘制内容与规格漂移：{[a for a, b in zip(drawn, expected_lines) if a != b][:2]}"
-    assert all(line in S.B2_PAGE_TEXT for line in drawn), "B2 绘制行未全部落在 B2_PAGE_TEXT 规格内"
+        for seg in wrap(text, font_b, W - 110 - 50, indent="　"):
+            d.text((110, y), seg, fill=30, font=font_b); drawn.append(seg); y += 44
+        y += 36
+        source_lines.append(text)
+    # 自证：wrap 分段拼接 == 源行（无丢字无错序）——防“断行丢尾字”回归
+    i = 0
+    for src in source_lines:
+        segs: list[str] = []
+        while i < len(drawn):
+            segs.append(drawn[i]); i += 1
+            joined = "".join(segs)
+            if src.startswith(joined) and len(joined) >= len(src):
+                break
+            if not src.startswith(joined):
+                raise AssertionError(f"B2 断行漂移：{segs!r} 不构成源行前缀（源行：{src[:30]}…）")
+        assert "".join(segs) == src, f"B2 断行拼接丢字：{''.join(segs)!r} != {src[:30]}…"
+    assert all(line in S.B2_PAGE_TEXT for line in source_lines), "B2 绘制行未全部落在 B2_PAGE_TEXT 规格内"
     # 红色公章（椭圆占位，扫描件特征）
     d.ellipse((830, 1040, 1150, 1360), outline=120, width=6)
     for i in range(5):
         d.arc((900 + i, 1080 + i, 1080 - i, 1180 - i), start=200, end=340, fill=110, width=3)
     d.text((930, 1220), "（示例公章）", fill=110, font=font_b)
+
+    # 像素级自证（v0.4 修复）：文字必须真实渲染在像素层——防可变字体静默空白再次溜过。
+    # 列表断言只能证明“调过 d.text”，证明不了“画出了字”。
+    import numpy as _np
+    _a = _np.array(img)
+    assert int(_a.min()) <= 60, f"B2 像素层无文字（min={_a.min()}）——字体渲染失败"
+    assert (_a < 150).sum() >= 20000, f"B2 暗像素过少（{(_a < 150).sum()}<20000）——文字大面积缺失"
+    _rows = (_a < 150).sum(axis=1)
+    _text_rows = int((_rows[:1000] > 20).sum())  # y<1000 为文字区（公章在 1040+）
+    assert _text_rows >= 20, f"B2 文字区行数不足（{_text_rows}<20）"
 
     c = rl_canvas.Canvas(str(path), pagesize=A4)
     c.setTitle("B2 投标函格式页（扫描件）")

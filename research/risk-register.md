@@ -48,12 +48,12 @@
 
 | 风险 | 对应设计（AD/契约） | 实现模块（M*） | 测试用例（TC*） | 测试结果 | 残余风险（层） |
 |---|---|---|---|---|---|
-| R-01 | AD-03 确定性切块；MCP §2 import 返回统计 | M1 解析与条款 | TC-01 | 待执行 | 未编号/附件条款遗漏（L1→核对纪律） |
-| R-02 | AD-03 双通道；MCP §5 search_evidence | M2 证据与矩阵 | TC-02 | 待执行 | 语义相关性误判（L3→人工抽检） |
+| R-01 | AD-03 确定性切块；MCP §2 import 返回统计 | M1 解析与条款（bid-parse/bid-tools） | TC-01 | TESTED | 未编号/附件条款遗漏（L1→核对纪律，corpus-R 真实分布测试集验证） |
+| R-02 | AD-03 双通道；MCP §5 search_evidence | M1 精确通道（bidcore/bid-kb）；M2 补语义通道 | TC-02 | 待执行 | 语义相关性误判（L3→人工抽检）；语义通道 M2 落地后补测 |
 | R-03 | MCP §5 valid_until 降权；MCP §7 确定性规则 | M2 + M4 | TC-03、TC-05、TC-09 | 待执行 | 有效期基准解释错/选错文件（L2 规则解释 finding） |
 | R-04 | MCP §6 强制绑定；Skill P6 引用键纪律 | M3 + M5 | TC-03、TC-04 | 待执行 | 引用存在但内容不支持（L3→ReviewStatus 人工确认） |
 | R-05 | domain-model §2 DIRTY/content_version；MCP 通用 project_version | M1 状态机起 | TC-06、TC-08、TC-09 | 待执行 | 影响面规则漏判（设计假设→EXP-2 实测） |
-| R-06 | MCP §0 幂等策略 | M1 | TC-07 | 待执行 | — |
+| R-06 | MCP §0 幂等策略 | M1（bidcore/bid-domain DomainStore） | TC-07 | TESTED | — |
 | R-07 | AD-06 规则分层；MCP §7 DETERMINISTIC/MODEL | M4 | TC-05 回放 | 待执行 | 模型 finding 假阳干扰（回放集回归） |
 | R-08 | AD-03 KBAdapter；MCP 附录 A | M6（可选） | TC-10 | 待执行 | 对比期检索质量不确定（A/B 结论归档） |
 | R-09 | AD-03 数据边界；部署红线 | 全程约束 | 部署检查单、TC-10（限自托管实例） | 待执行 | 供应链面（镜像/模型出口）→ verification-plan §5.4 |
@@ -61,7 +61,7 @@
 | R-11 | AD-05 页数口径；MCP §8 precheck 闸门 | M4 + M5 | TC-05、TC-12 | 待执行 | 版式合规（渲染级复验，doc-engine-audit G8） |
 | R-12 | AD-01 状态自持 | 架构约束 | EXP-1 迁移面 | 待执行 | — |
 | R-13 | domain-model 数据标记；Skill 纪律 | M1 + M5 | TC-05 规则 8 | 待执行 | 不可穷举注入（纵深防御，§5.4） |
-| R-14 | AD-02 路径 A；MCP E_STATE | M1 状态机 | TC-11 | 待执行 | — |
-| R-15 | MCP §5 tie-breaker | M2 | TC-02 | 待执行 | — |
+| R-14 | AD-02 路径 A；MCP E_STATE | M1 状态机（bid-domain） | TC-11 | TESTED | — |
+| R-15 | MCP §5 tie-breaker | M1（bid-kb 四级排序） | TC-02 | TESTED | — |
 
 **审计问题（Q1~Q10，workflow-audit）→ 风险映射**：Q1→R-01；Q2→R-01/R-02；Q3→R-04/R-07；Q4→R-02/R-15；Q5→R-03/R-04（矩阵闸门）；Q6→R-05；Q7→R-07（规则分界）；Q8→R-05（恢复）；Q9→AD-01/AD-02 实证基础；Q10→R-10。此前 test-plan TC-03/TC-08 直接引用 Q 编号，v2 起统一改为 R 编号（Q 映射保留在本行）。

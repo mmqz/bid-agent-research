@@ -1,0 +1,14 @@
+[package]
+name = "bid-tools"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+bid-domain = { path = "../bid-domain" }
+bid-parse = { path = "../bid-parse" }
+bid-kb = { path = "../bid-kb" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+hex = { workspace = true }
+regex = { workspace = true }

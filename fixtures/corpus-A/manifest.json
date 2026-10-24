@@ -165,8 +165,8 @@
     },
     {
       "path": "corpus-A/expected-transitions/TC-01.json",
-      "sha256": "169e467f12d055a8f3b19931a8e4661514497d9d2ec3b548336eb5f2d70d82fc",
-      "bytes": 3404
+      "sha256": "78f206af4ca1c8e7055242199aa1724f45ab8b10709bc69cefaa4c78a361c97a",
+      "bytes": 3402
     },
     {
       "path": "corpus-A/expected-transitions/TC-02.json",
@@ -235,8 +235,8 @@
     },
     {
       "path": "corpus-A/files/B2-投标函格式页-扫描件.pdf",
-      "sha256": "723e91e4068ed057b92db69df503aa6048615cc4d077c6b468e3aa39139b6319",
-      "bytes": 4978
+      "sha256": "2c81a0016799d48c104be769519261bd31bfde8a4274729360985ceca5465713",
+      "bytes": 100445
     },
     {
       "path": "corpus-A/files/B3-图纸目录.xlsx",
