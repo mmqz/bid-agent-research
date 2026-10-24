@@ -56,11 +56,11 @@
 | R-06 | MCP §0 幂等策略 | M1（bidcore/bid-domain DomainStore） | TC-07 | TESTED | — |
 | R-07 | AD-06 规则分层；MCP §7 DETERMINISTIC/MODEL | M4 | TC-05 回放 | 待执行 | 模型 finding 假阳干扰（回放集回归） |
 | R-08 | AD-03 KBAdapter；MCP 附录 A | M6（可选） | TC-10 | 待执行 | 对比期检索质量不确定（A/B 结论归档） |
-| R-09 | AD-03 数据边界；部署红线 | 全程约束 | 部署检查单、TC-10（限自托管实例） | 待执行 | 供应链面（镜像/模型出口）→ verification-plan §5.4 |
+| R-09 | AD-03 数据边界；部署红线 | 全程约束 | 部署检查单、TC-10（限自托管实例） | 待执行 | 供应链面（镜像/模型出口）→ threat-model.md（S1 v1.0：15 威胁四组+审批矩阵；T-15 供应链待 M0 闭包审查） |
 | R-10 | AD-06 白名单；repository-matrix §3 | M0 | 合规审查 | 待执行 | 传递依赖引入（NOTICES 式闭包审查） |
 | R-11 | AD-05 页数口径；MCP §8 precheck 闸门 | M4 + M5 | TC-05、TC-12 | PARTIAL | 版式合规（渲染级复验，doc-engine-audit G6；G3 引擎侧缺口仍开，业务侧缓解已验） |
 | R-12 | AD-01 状态自持 | 架构约束 | EXP-1 迁移面 | 待执行 | — |
-| R-13 | domain-model 数据标记；Skill 纪律 | M1 + M5 | TC-05 规则 8 | 待执行 | 不可穷举注入（纵深防御，§5.4） |
+| R-13 | domain-model 数据标记；Skill 纪律 | M1 + M5 | TC-05 规则 8 | 待执行 | 不可穷举注入（L3 残余→人工审校门禁收口；确定性解析层结构性免疫=T-10 TESTED 面，起草层见 threat-model.md） |
 | R-14 | AD-02 路径 A；MCP E_STATE | M1 状态机（bid-domain） | TC-11 | TESTED | — |
 | R-15 | MCP §5 tie-breaker | M1（bid-kb 四级排序） | TC-02 | TESTED | — |
 
@@ -69,8 +69,14 @@
 - **R-01 → TESTED（双证）**：① M1 Rust 端到端（bidcore/bid-parse 四通道真跑 corpus-A，TC-01 召回 100%——160 REQ 全量抽取覆盖 25 GT，cargo test 12 用例全绿）；② V1-a 解析面基座（parse-report v1.0：文本层锚点 26/26 + corpus-R D1/D2/D5 探针 11/11 + 非正文盘点 5/5；run_tests T7a）。
 - **R-06/R-14/R-15 → TESTED**：bidcore/bid-domain DomainStore 幂等 no-op（TC-07）、E_STATE 越级防护（TC-11）、bid-kb 四级确定性排序 tie-breaker（TC-02 精确通道）——cargo test 全绿。
 - **R-03 PARTIAL**：V2 R2 已验有效期级联语义（SEMUL：开标日 11-15→11-27 → 全项目重检；GT-02 EV-02 恰翻转 EXPIRED；EV-13 维持禁绑细项 0 分；其余零误翻；run_tests T8）——TC-03/05 矩阵规则真跑待 M2/M4。
-- **R-04 PARTIAL**：V1-b 定位器两级失效语义已验（SEMUL：10 链回查全 valid + 内容改写恰 1 链 stale_content + 结构漂移全体失效/书签重验恢复；run_tests T7b）——TC-04 引用支持率待 M3。
-- **R-05 PARTIAL**：V1-b GT-18 补遗版本链入引用链（latest_version_wins 落地）；V2 影响面规则已验设计语义（SEMUL：TC-09 六断言契约消费 + DIRTY 恰三章节 + 开标日级联全项目重检 + 无关零误伤 + 矛盾终裁门禁 + 幂等 no-op；run_tests T8）——TC-06/08（中断/换模型恢复）待 M2，与 bid-domain Rust 双实现交叉验证待 cargo。
+- **R-04 PARTIAL**：V1-b 定位器两级失效语义已验（SEMUL：10 链回查全 valid + 内容改写恰 1 链 stale_content + 结构漂移全体失效/书签重验恢复；run_tests T7b）；V3 Q1 五轮重写引用保持 + Q2 只降不升/不静默 adopt 再证（run_tests T9）——TC-04 引用支持率待 M3。
+- **R-05 PARTIAL**：V1-b GT-18 补遗版本链入引用链（latest_version_wins 落地）；V2 影响面规则已验设计语义（SEMUL：TC-09 六断言契约消费 + DIRTY 恰三章节 + 开标日级联全项目重检 + 无关零误伤 + 矛盾终裁门禁 + 幂等 no-op；run_tests T8）——TC-06/08（中断/换模型恢复）待 M2，与 bid-domain Rust 双实现交叉验证待 cargo；V3 Q3 导出中断两阶段一致性已验设计语义（EXPORTED ⟺ sha256 落库；run_tests T9）。
 - **R-11 PARTIAL**：V1-c/d 渲染级已验（LO headless：8 页硬断言 + 分页纪律 + 页眉页脚域；暗标四断言：禁字双面零命中 + docProps 清零 + 金丝雀防空洞绿；run_tests T7c/T7d）——Word/WPS 口径人工复验待（test-plan §5.5）。
+
+**威胁模型 GAP 注记（S1 v1.0 建模发现，docs/threat-model.md）**：
+
+- **T-03 压缩包炸弹限额（P1）**：bid-parse xlsx（calamine 全量内存）/docx（zip 解压无总量上限）未挂引擎 office-io 三门——构造高压缩比样本拒收测试待补（建议随 M1.5 解析器加固）。
+- **T-04 子进程超时（P1）**：bid-parse pdf.rs `Command::output()` 无 timeout（pdftoppm/tesseract 挂死即 DoS；arg 数组调用无注入面）——包 60s 超时 + 挂死样本回归。
+- 上述两 GAP 属 R-01 缓解面（解析失败件隔离）的加固项：**真实用户文件接入前完成**。
 
 **审计问题（Q1~Q10，workflow-audit）→ 风险映射**：Q1→R-01；Q2→R-01/R-02；Q3→R-04/R-07；Q4→R-02/R-15；Q5→R-03/R-04（矩阵闸门）；Q6→R-05；Q7→R-07（规则分界）；Q8→R-05（恢复）；Q9→AD-01/AD-02 实证基础；Q10→R-10。此前 test-plan TC-03/TC-08 直接引用 Q 编号，v2 起统一改为 R 编号（Q 映射保留在本行）。

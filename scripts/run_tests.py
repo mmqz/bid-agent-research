@@ -372,9 +372,26 @@ def t_v2():
           r["R6_delete_add_rules"]["pass"])
 
 
+# ---------------------------------------------------------------- T9（V3 内核集成三问）
+def t_v3():
+    """V3 文档内核集成边界（verification-plan §3.3）：三问断言（设计语义 SEMUL——
+    doc-engine-audit §5 映射契约；引擎接入后升 ENGINE_RUN）。"""
+    print("[T9] V3 内核集成三问（重写引用保持 / 撤销只降不升 / 导出中断一致性）")
+    import v3_integration
+    with tempfile.TemporaryDirectory() as td:
+        report = v3_integration.run_v3(Path(td))
+    r = report["results"]
+    check("T9 Q1 五轮重写：每轮恰一链降级 + 重验恢复 + 无悬空书签",
+          r["Q1_rewrite_5rounds"]["pass"])
+    check("T9 Q2 撤销只降不升（undo 不自发恢复）+ 外部修改不静默 adopt",
+          r["Q2_undo_and_reopen"]["pass"])
+    check("T9 Q3 两阶段导出：中断停 EXPORTING 零假 EXPORTED + 恢复幂等同 sha",
+          r["Q3_export_interrupt"]["pass"])
+
+
 def main() -> int:
     print("=" * 62)
-    print("ai-bid-research 每轮测试（V0 夹具 + 一致性 + 判分器 + V1 四段 + V2 影响面）")
+    print("ai-bid-research 每轮测试（V0 夹具 + 一致性 + 判分器 + V1/V2/V3 验证）")
     print("=" * 62)
     t_xref()
     t_fixture_integrity()
@@ -383,6 +400,7 @@ def main() -> int:
     t_determinism()
     t_v1()
     t_v2()
+    t_v3()
     print("-" * 62)
     print(f"结果：{len(_passed)} 通过 / {len(_failed)} 失败")
     if _failed:

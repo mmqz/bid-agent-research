@@ -16,6 +16,7 @@
 | [docs/bid-mcp-contract.md](docs/bid-mcp-contract.md) | 8+1 个 MCP 工具契约（参数/返回/错误/幂等/状态转换）+ **KBAdapter 知识库适配器**（含 Dify API 端点核验与局限、Cherry 否决记录） | 知识库=import/search 的可替换实现层；自建为默认，Dify API 仅作 A/B 对比 |
 | [docs/bid-skill-design.md](docs/bid-skill-design.md) | 主 Skill 九阶段路径（顺序锁死）+ 停止条件 + 恢复协议 + 反模式清单 | 封闭 Agent 只做编排核对，解析切块归后端确定性代码 |
 | [docs/architecture-decision.md](docs/architecture-decision.md) | AD-01~AD-07 决策记录，**全部标注验证状态（TESTED/VERIFIED_SOURCE/DESIGN_ASSUMPTION/PENDING）** | 不上完整 Dify（论据已收紧，待 EXP-1 实测补证）；路径 A；AD-07=文档引擎对齐 mdcore 既有契约 |
+| [docs/threat-model.md](docs/threat-model.md) | **安全威胁模型（S1 v1.0）**：信任边界五级 + 15 威胁四组×（面/引擎继承/业务补充/测试锚点/状态）+ 人工审批强制点矩阵（双层门禁） | 建模发现 2 个真实 GAP：bid-parse 压缩包炸弹限额（T-03）/ 子进程超时（T-04）——解析器加固待办；注入收口=人工审校门禁（确定性层结构性免疫） |
 | [docs/doc-engine-audit.md](docs/doc-engine-audit.md) | **文档引擎只读审计**（mdcore + cleanroom-analysis，源码锚点级）：块锚点/证据三态/八步闭环/ReviewPolicy/Office/PDF 能力面；差距矩阵 G1~G11；集成边界映射（两系统共同维护版本与证据关系）；引擎能力需求清单 P0/P1/P2 | 引擎成熟度高于预期，集成从"自建薄适配"改为"对齐既有契约"；P0 缺口=目录域/文档级格式/暗标元数据清零（需引擎团队排期） |
 | [docs/mvp-implementation-plan.md](docs/mvp-implementation-plan.md) | MVP 实施顺序（M0~M5） | M3 起接真实内核（接口按 AD-07 修订对齐） |
 
@@ -28,10 +29,11 @@
 - 已完成：18 仓库实证审计 + 全套设计文档（v1）→ 评审意见落实（v2）→ **V0 评测夹具（v0.4，corpus-A 39 件 + corpus-R D1/D2/D5 五件确定性合成，判分器 13 类破坏注入全捕获）**。
 - **已执行：V1 文件解析→最终 DOCX 导出全链路四段验证（v1.0 四段全绿，run_tests 26 项）**——①解析覆盖（corpus-A 文本层锚点 26/26 + corpus-R 结构探针 11/11，非正文盘点归因 G7）；②引用回填（10 链两级定位回查 + 结构漂移/书签重验语义，SEMUL 口径）；③导出保真（LO headless 8 页硬断言 + 分页纪律/页眉页脚域/图片/合并表）；④暗标口径（禁字双面零命中 + docProps 清零 + 金丝雀防空洞绿）。证据：`artifacts/v1/`；脚本：`scripts/v1_*.py`。
 - **已执行：V2 补遗/答疑/版本影响面计算验证（v1.0 七断言组全绿，run_tests T8）**——TC-09 六断言契约消费 + DIRTY 恰三章节（无关零误伤）+ 开标日级联（GT-02 翻转 EXPIRED/EV-13 维持禁绑/零误翻）+ 矛盾终裁门禁（终裁前不得 ACCEPTED）+ 幂等 no-op + 删除/新增规则（合成层）。证据：`artifacts/v2/`；脚本：`scripts/v2_impact.py`。
-- 进行中：研究验证阶段（verification-plan §7 顺序）——V0 ✅ → V1 ✅ → V2 ✅ → **下一步 EXP-1 对照实验（Dify 侧待环境）→ V3 内核集成断言（引擎 Rust 工具链待备）** → S1/S2/S3 → 决策是否进入 MVP。
+- **已执行：V3 内核集成三问断言（SEMUL v1.0 全绿，run_tests T9）**——五轮重写引用保持（每轮恰一链降级+重验恢复+零悬空）；撤销只降不升（undo 不自发恢复）+ 外部修改不静默 adopt；两阶段导出中断一致性（EXPORTED ⟺ sha256 落库）。证据：`artifacts/v3/`；脚本：`scripts/v3_integration.py`。
+- 进行中：研究验证阶段（verification-plan §7 顺序）——V0 ✅ → V1 ✅ → V2 ✅ → V3 ✅（SEMUL）→ **S1 ✅（threat-model v1.0：建模发现 T-03/T-04 两 GAP）→ EXP-1 对照实验（Dify 侧待环境）/ S3 首轮指标（待模型环境）** → 决策是否进入 MVP；S2 边界裁决待用户输入。
 - 引擎侧协同：P0 能力需求（目录域/文档级格式/暗标元数据清零）已列 doc-engine-audit §6，经用户转达引擎团队排期；**V1 回填：G3 业务侧缓解已验（过渡）、G6 渲染复验价值坐实、G7 扩展为非正文定位器变体缺口（doc-engine-audit §4.1）**。
 
 ## 审计与验证脚本
 
 - 审计：`scripts/gh_audit.py`（元数据+文件树+README 取证）、`scripts/gh_search.py`（补充仓库搜索）、`scripts/gh_deep.py`（关键源码抽检）。Token 经环境变量注入，不入库。
-- 验证：`scripts/run_tests.py`（每轮 34 项：xref 一致性/夹具完整性/埋点读回/判分器自测/确定性/V1 四段/V2 影响面）；`scripts/v1_pipeline.py`（V1-a 解析覆盖）、`scripts/v1_export.py`（V1-c 导出保真）、`scripts/v1_citation.py`（V1-b 引用回填）、`scripts/v1_darkbid.py`（V1-d 暗标口径）、`scripts/v1_corpus_r.py`（corpus-R 结构层生成）、`scripts/v2_impact.py`（V2 影响面验证）、`scripts/ooxml_util.py`（确定性 zip + 引擎指纹/定位器语义仿真）。
+- 验证：`scripts/run_tests.py`（每轮 37 项：xref 一致性/夹具完整性/埋点读回/判分器自测/确定性/V1 四段/V2 影响面/V3 三问）；`scripts/v1_pipeline.py`（V1-a 解析覆盖）、`scripts/v1_export.py`（V1-c 导出保真）、`scripts/v1_citation.py`（V1-b 引用回填）、`scripts/v1_darkbid.py`（V1-d 暗标口径）、`scripts/v1_corpus_r.py`（corpus-R 结构层生成）、`scripts/v2_impact.py`（V2 影响面验证）、`scripts/v3_integration.py`（V3 内核集成三问）、`scripts/ooxml_util.py`（确定性 zip + 引擎指纹/定位器语义仿真）。
