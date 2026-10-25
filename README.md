@@ -16,8 +16,9 @@
 | [docs/bid-mcp-contract.md](docs/bid-mcp-contract.md) | 8+1 个 MCP 工具契约（参数/返回/错误/幂等/状态转换）+ **KBAdapter 知识库适配器**（含 Dify API 端点核验与局限、Cherry 否决记录） | 知识库=import/search 的可替换实现层；自建为默认，Dify API 仅作 A/B 对比 |
 | [docs/bid-skill-design.md](docs/bid-skill-design.md) | 主 Skill 九阶段路径（顺序锁死）+ 停止条件 + 恢复协议 + 反模式清单 | 封闭 Agent 只做编排核对，解析切块归后端确定性代码 |
 | [docs/architecture-decision.md](docs/architecture-decision.md) | AD-01~AD-07 决策记录，**全部标注验证状态（TESTED/VERIFIED_SOURCE/DESIGN_ASSUMPTION/PENDING）** | 不上完整 Dify（论据已收紧，待 EXP-1 实测补证）；路径 A；AD-07=文档引擎对齐 mdcore 既有契约 |
-| [docs/threat-model.md](docs/threat-model.md) | **安全威胁模型（S1 v1.0）**：信任边界五级 + 15 威胁四组×（面/引擎继承/业务补充/测试锚点/状态）+ 人工审批强制点矩阵（双层门禁） | 建模发现 2 个真实 GAP：bid-parse 压缩包炸弹限额（T-03）/ 子进程超时（T-04）——解析器加固待办；注入收口=人工审校门禁（确定性层结构性免疫） |
-| [docs/doc-engine-audit.md](docs/doc-engine-audit.md) | **文档引擎只读审计**（mdcore + cleanroom-analysis，源码锚点级）：块锚点/证据三态/八步闭环/ReviewPolicy/Office/PDF 能力面；差距矩阵 G1~G11；集成边界映射（两系统共同维护版本与证据关系）；引擎能力需求清单 P0/P1/P2 | 引擎成熟度高于预期，集成从"自建薄适配"改为"对齐既有契约"；P0 缺口=目录域/文档级格式/暗标元数据清零（需引擎团队排期） |
+| [docs/threat-model.md](docs/threat-model.md) | **安全威胁模型（S1 v1.0）**：信任边界五级 + 15 威胁四组×（面/引擎继承/业务补充/测试锚点/状态）+ 人工审批强制点矩阵（双层门禁） | 建模发现 2 个真实 GAP（T-03/T-04）→ **已于 M1.5 实装关闭（2026-10-25，IMPLEMENTED：guard.rs 五门 + run_limited 治理，20 负向测试）**；注入收口=人工审校门禁（确定性层结构性免疫） |
+| [docs/doc-engine-audit.md](docs/doc-engine-audit.md) | **文档引擎只读审计**（mdcore + cleanroom-analysis，源码锚点级）：块锚点/证据三态/八步闭环/ReviewPolicy/Office/PDF 能力面；差距矩阵 G1~G11；集成边界映射（两系统共同维护版本与证据关系）；引擎能力需求清单 P0/P1/P2 | 引擎成熟度高于预期，集成从"自建薄适配"改为"对齐既有契约"；P0 缺口=目录域/文档级格式/暗标元数据清零（需引擎团队排期）；**2026-10-25 复核：引擎仓同步至 c33bcab，三锚点全部仍有效** |
+| [docs/engine-capability-requests-g1g3.md](docs/engine-capability-requests-g1g3.md) | **G1/G2/G3 引擎能力需求提交材料**（2026-10-25）：三缺口的最新源码直引（非转述）+ 验收条件 + 依赖 + 业务侧现状（G1 域路径先例/G3 zip 补丁过渡）+ 责任边界声明 | 经用户转达引擎团队；引擎仓只读红线不破 |
 | [docs/mvp-implementation-plan.md](docs/mvp-implementation-plan.md) | MVP 实施顺序（M0~M5） | M3 起接真实内核（接口按 AD-07 修订对齐） |
 
 ## 架构一句话总结
