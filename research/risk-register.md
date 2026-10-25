@@ -77,10 +77,10 @@
 - R-01/TC-01：corpus-A 锚点覆盖 27/27=100%、对齐器召回 100%、parse_failures=0、missing_sequence=0；R-02/TC-02：exact 通道 25/25（含数值归一化）；R-06/TC-07：sha256 重放 no-op，files/chunks delta=0，双跑字节一致；R-14/TC-11：越级 draft_response_section → E_STATE 零副作用；R-15/TC-02：同查询 5 次结果完全一致（覆盖率→密度→导入序→块序确定性排序）。
 - m1/ 为并行会话首轮实现（单 crate 最小流水线），bidcore/ 五 crate 工作区为同源演进版——本矩阵 TESTED 状态以 bidcore 证据为准，m1 证据作并行佐证随仓保留（m1 回归门禁见 run_tests T10~T13）。
 
-**威胁模型 GAP 注记（S1 v1.0 建模发现，docs/threat-model.md）**：
+**威胁模型 GAP 注记（S1 v1.0 建模发现，docs/threat-model.md；M1.5 已关闭——2026-10-25 a485a7b 实装 + R3 修复轮 f59b3f1/本轮 S3-1/S3-3/P2-4 加固）**：
 
-- **T-03 压缩包炸弹限额（P1）**：bid-parse xlsx（calamine 全量内存）/docx（zip 解压无总量上限）未挂引擎 office-io 三门——构造高压缩比样本拒收测试待补（建议随 M1.5 解析器加固）。
-- **T-04 子进程超时（P1）**：bid-parse pdf.rs `Command::output()` 无 timeout（pdftoppm/tesseract 挂死即 DoS；arg 数组调用无注入面）——包 60s 超时 + 挂死样本回归。
-- 上述两 GAP 属 R-01 缓解面（解析失败件隔离）的加固项：**真实用户文件接入前完成**。
+- **T-03 压缩包炸弹限额（P1）→ IMPLEMENTED**：guard.rs 输入字节门 + prescan 三门 + 压缩比门 + 实际读取累计计量 + EOCD/zip64-EOCD 守恒门（S3-1 后 zip64 绕过封死）+ xlsx 读后行/单元格双轴门（S3-3）——负向 12 项 + xlsx 2 项全绿。
+- **T-04 子进程超时（P1）→ IMPLEMENTED**：run_limited 超时杀进程组 + 溢出即时杀 + 五分类 + 并发门 + TmpGuard + OCR 页数门 + stderr 持续 drain（P2-4）——9 项测试全绿。
+- 上述两 GAP 属 R-01 缓解面（解析失败件隔离）的加固项：**真实用户文件接入前置已兑现**（P2 第一轮真实文件评测 6a392d5 即在此防护下执行）。
 
 **审计问题（Q1~Q10，workflow-audit）→ 风险映射**：Q1→R-01；Q2→R-01/R-02；Q3→R-04/R-07；Q4→R-02/R-15；Q5→R-03/R-04（矩阵闸门）；Q6→R-05；Q7→R-07（规则分界）；Q8→R-05（恢复）；Q9→AD-01/AD-02 实证基础；Q10→R-10。此前 test-plan TC-03/TC-08 直接引用 Q 编号，v2 起统一改为 R 编号（Q 映射保留在本行）。

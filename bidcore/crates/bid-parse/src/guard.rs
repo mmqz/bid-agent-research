@@ -48,6 +48,13 @@ pub const LIMIT_ACTUAL_READ_DOCX: u64 = 64 * 1024 * 1024;
 /// XML 元素嵌套深度上限（对齐引擎 LIMIT_XML_DEPTH；quadratic 实体不适用
 /// quick-xml 流式，但深嵌套内存/CPU 面仍需封顶）。
 pub const LIMIT_XML_DEPTH: usize = 1_000;
+/// xlsx 后置门：有效行总数上限（R3-S3-3 缓解，M2 提前落地）——calamine 黑盒
+/// 全量内存加载的下游边界：内部解压内存尖峰仍登记 threat-model（声明 0 绕过
+/// prescan 比例门的构造面），本门保证超量件显式拒绝不留部分结果 + 下游有界。
+/// 实测量级参照：真实图纸目录/量价清单远低于 10 万行。
+pub const LIMIT_XLSX_FILLED_ROWS: usize = 200_000;
+/// xlsx 后置门：非空单元格总数上限（同上，与行门双轴）。
+pub const LIMIT_XLSX_TOTAL_CELLS: usize = 2_000_000;
 
 /// 嵌套归档载具扩展名（外层条目若为归档 → 拒绝：嵌套炸弹的标配形态）。
 const NESTED_ARCHIVE_EXTS: &[&str] =
@@ -250,24 +257,25 @@ pub fn open_guarded(path: &Path, input_limit: u64) -> GResult<ZipArchive<File>> 
     let file = File::open(path).map_err(|e| GuardError::Io(e.to_string()))?;
     let mut za = ZipArchive::new(file).map_err(|e| GuardError::Io(format!("非有效 zip/docx: {e}")))?;
     prescan_zip(&mut za)?;
-    // 守恒门：EOCD 声明条目数 ≠ 归档实际条目数 → 拒绝。
+    // 守恒门：EOCD/zip64-EOCD 声明条目数 ≠ 归档实际条目数 → 拒绝。
     // zip crate 读取层用 HashMap 去重同名条目——重复条目进不了 prescan 视野；
-    // 守恒比对封死这个吸收面（0xFFFF 为 zip64 标记位，跳过不判）。
+    // 守恒比对封死这个吸收面。0xFFFF（zip64 标记）不再跳过：经 zip64 locator 链
+    // 取 zip64 EOCD 记录真实计数再比对（R3-S3-1：原实现见标记即跳过，zip64
+    // 重复条目归档实测绕过；locator 链解析不出的 exotica 维持跳过，残余面登记 threat-model）。
     if let Some(declared) = eocd_declared_entry_count(path)? {
-        if declared != 0xFFFF {
-            let actual = za.len();
-            if declared as usize != actual {
-                return Err(GuardError::EntryCountMismatch { declared: declared as usize, actual });
-            }
+        let actual = za.len() as u64;
+        if declared != actual {
+            return Err(GuardError::EntryCountMismatch { declared: declared as usize, actual: za.len() });
         }
     }
     Ok(za)
 }
 
-/// 解析 EOCD（End of Central Directory）的声明条目数字段。
+/// 解析 EOCD 声明条目数：u16 字段；0xFFFF（zip64 标记）转经 zip64 locator 链
+/// 取 zip64 EOCD 记录（PK\x06\x06）+32 处 u64 真实总条目数（R3-S3-1）。
 /// 从文件尾部向前扫描「PK\x05\x06」签名（尾部 22B + 最长 65535B comment 区）；
 /// 无 EOCD（zip crate 已拒绝的 malformed）返回 None，不重复裁决。
-fn eocd_declared_entry_count(path: &Path) -> GResult<Option<u16>> {
+fn eocd_declared_entry_count(path: &Path) -> GResult<Option<u64>> {
     let len = std::fs::metadata(path).map_err(|e| GuardError::Io(e.to_string()))?.len();
     if len < 22 {
         return Ok(None);
@@ -286,10 +294,36 @@ fn eocd_declared_entry_count(path: &Path) -> GResult<Option<u16>> {
             break;
         }
     }
-    match found {
-        Some(i) => Ok(Some(u16::from_le_bytes(tail[i + 10..i + 12].try_into().unwrap()))),
-        None => Ok(None),
+    let i = match found {
+        Some(i) => i,
+        None => return Ok(None),
+    };
+    let declared16 = u16::from_le_bytes(tail[i + 10..i + 12].try_into().unwrap());
+    if declared16 != 0xFFFF {
+        return Ok(Some(declared16 as u64));
     }
+    // zip64 标记：locator = EOCD 紧邻前 20B（PK\x06\x07 + u32 disk + u64 记录偏移 + u32 总盘数），
+    // 其 +8 处 u64 指向 zip64 EOCD 记录；记录 +32 处 u64 为中央目录总条目数。
+    if i < 20 || scan_start + (i as u64) < 20 {
+        return Ok(None); // 无 locator 空间的非标准结构——交 crate 自身裁决（残余面登记）
+    }
+    let loc = &tail[i - 20..i];
+    if loc[0..4] != [0x50, 0x4B, 0x06, 0x07] {
+        return Ok(None); // 无有效 locator：crate 按 65535 头读取，malformed 自拒（R3 实测）
+    }
+    let z64_off = u64::from_le_bytes(loc[8..16].try_into().unwrap());
+    if z64_off + 56 > len {
+        return Ok(None); // 越界指针：解析不出真实计数，维持跳过（fail-open 仅限此 exotica，登记在案）
+    }
+    f.seek(SeekFrom::Start(z64_off)).map_err(|e| GuardError::Io(e.to_string()))?;
+    let mut rec = [0u8; 56];
+    if f.read_exact(&mut rec).is_err() {
+        return Ok(None);
+    }
+    if rec[0..4] != [0x50, 0x4B, 0x06, 0x06] {
+        return Ok(None); // 目标非 zip64 EOCD 记录：结构不一致，交 crate 裁决
+    }
+    Ok(Some(u64::from_le_bytes(rec[32..40].try_into().unwrap())))
 }
 
 /// 流式 sha256（替换 `fs::read` 全量内存哈希——大文件面顺带根治）。
@@ -398,13 +432,19 @@ fn kill_process_tree(child: &Child) {
     }
     #[cfg(not(unix))]
     {
+        // P2-6①：非 unix 降级为只杀直接子进程（Windows 下孙进程漏杀）；
+        // 本仓部署面为 Linux，降级路径仅保编译——Windows 部署需 taskkill /T 等价物
         let _ = child.kill();
     }
 }
 
-/// 受治运行一个外部命令：超时杀组、stdout 上限、stderr 截头、五分类。
+/// 受治运行一个外部命令：超时杀组、stdout 上限、stderr 持续 drain（保留头 64KB）、五分类。
 /// 溢出即时杀：读线程置共享原子标志，轮询循环立即杀组（不等超时——
 /// `yes` 类无限输出进程会在管道写阻塞，必须主动收割）。
+///
+/// 内存上界全档化（P2-5）：Success 路径 `from_utf8_lossy(≤64MB stdout)` 瞬时可达
+/// 3×（192MB）× 并发门 4 席 ≈ 0.75GB（与 read_entry_limited 的 lossy 同款账）；
+/// stderr drain 头 64KB 有界。部署内存规划按此上界留余量。
 pub fn run_limited(mut cmd: Command, timeout: Duration, stdout_limit: u64) -> RunOutcome {
     use std::sync::atomic::AtomicBool;
     let program = format!("{:?}", cmd.get_program());
@@ -439,7 +479,8 @@ pub fn run_limited(mut cmd: Command, timeout: Duration, stdout_limit: u64) -> Ru
     let ov_flag = overflow.clone();
     let out_limit = stdout_limit;
     let (out_tx, out_rx) = mpsc::channel::<Vec<u8>>();
-    let t_out = std::thread::spawn(move || {
+    // 读线程 detached：结果经 channel 回收，JoinHandle 不持有（杀组后管道关闭自然退出）
+    let _ = std::thread::spawn(move || {
         let mut buf: Vec<u8> = Vec::new();
         let mut limited = (&mut stdout_pipe).take(out_limit + 1);
         // 超限 take 最多读 limit+1 字节即返回——超限即置溢出标志
@@ -450,20 +491,22 @@ pub fn run_limited(mut cmd: Command, timeout: Duration, stdout_limit: u64) -> Ru
         let _ = out_tx.send(buf);
     });
     let (err_tx, err_rx) = mpsc::channel::<String>();
-    let t_err = std::thread::spawn(move || {
-        // stderr 读到 EOF 为止但只保留头 64KB（R3-P2-4：截停不读会让孙进程阻塞管道）
+    let _ = std::thread::spawn(move || {
+        // R3-P2-4 修正版：**持续 drain 到 EOF**，只保留头部 64KB——
+        // 原实现 take(64KB+1) 读满即停：子进程 stderr 超量（管道 64KB + 已读 64KB）后
+        // 写管道永久阻塞 → 活进程被拖到超时误判 Timeout。drain 保证 stderr 无论
+        // 多少都不阻塞子进程（stderr 是诊断面，超量丢弃不计溢出——与 stdout 分类语义不同）。
         let mut head: Vec<u8> = Vec::new();
-        let mut sink = [0u8; 4096];
-        let mut limited = (&mut stderr_pipe).take(LIMIT_SUBPROC_STDERR + 1);
-        let mut done = false;
-        while !done {
-            match std::io::Read::read(&mut limited, &mut sink) {
-                Ok(0) | Err(_) => done = true,
+        let mut sink = [0u8; 8192];
+        loop {
+            match std::io::Read::read(&mut stderr_pipe, &mut sink) {
+                Ok(0) | Err(_) => break,
                 Ok(n) => {
                     if head.len() < LIMIT_SUBPROC_STDERR as usize {
                         let room = LIMIT_SUBPROC_STDERR as usize - head.len();
                         head.extend_from_slice(&sink[..n.min(room)]);
                     }
+                    // 超过 64KB 的部分：继续读并丢弃（drain，不退出不阻塞）
                 }
             }
         }
@@ -685,6 +728,73 @@ mod tests {
         assert!(matches!(err, GuardError::EntryCountMismatch { declared: 2, actual: 1 }), "{err}");
     }
 
+    /// 把常规 zip 改造为 zip64 结构：EOCD 计数/目录偏移 patch 为 zip64 标记 +
+    /// 追加 zip64 EOCD 记录（声明 count 条）与 locator——结构与 python zipfile
+    /// force_zip64 产物同构（R3 审计攻击样本复刻，攻击者可控面）。
+    fn make_zip64(raw: &[u8], count: u64) -> Vec<u8> {
+        let eocd = raw.windows(4).rposition(|w| w == b"PK\x05\x06").expect("EOCD 不在位");
+        // EOCD 定长 22B：sig(0-4) 盘号(4-6) 目录盘(6-8) 本盘条目(8-10) 总条目(10-12)
+        // 目录大小(12-16) 目录偏移(16-20) 注释长(20-22)
+        let cd_size = u32::from_le_bytes(raw[eocd + 12..eocd + 16].try_into().unwrap()) as u64;
+        let cd_off = u32::from_le_bytes(raw[eocd + 16..eocd + 20].try_into().unwrap()) as u64;
+        let z64_off = eocd as u64; // zip64 记录插在中央目录与 EOCD 之间
+        let mut z64 = Vec::with_capacity(56);
+        z64.extend_from_slice(b"PK\x06\x06");
+        z64.extend_from_slice(&44u64.to_le_bytes()); // 记录剩余定长字段大小（56-12）
+        z64.extend_from_slice(&[0x2D, 0x00]); // version made by
+        z64.extend_from_slice(&[0x2D, 0x00]); // version needed
+        z64.extend_from_slice(&0u32.to_le_bytes()); // 本盘号
+        z64.extend_from_slice(&0u32.to_le_bytes()); // 中央目录所在盘
+        z64.extend_from_slice(&count.to_le_bytes()); // 本盘条目数
+        z64.extend_from_slice(&count.to_le_bytes()); // 总条目数
+        z64.extend_from_slice(&cd_size.to_le_bytes()); // 中央目录大小
+        z64.extend_from_slice(&cd_off.to_le_bytes()); // 中央目录偏移
+        assert_eq!(z64.len(), 56);
+        let mut loc = Vec::with_capacity(20);
+        loc.extend_from_slice(b"PK\x06\x07");
+        loc.extend_from_slice(&0u32.to_le_bytes()); // zip64 EOCD 所在盘
+        loc.extend_from_slice(&z64_off.to_le_bytes()); // zip64 EOCD 偏移
+        loc.extend_from_slice(&1u32.to_le_bytes()); // 总盘数
+        assert_eq!(loc.len(), 20);
+        let mut eocd_new = raw[eocd..].to_vec();
+        eocd_new[8..10].copy_from_slice(&0xFFFFu16.to_le_bytes()); // 本盘条目数 → 标记
+        eocd_new[10..12].copy_from_slice(&0xFFFFu16.to_le_bytes()); // 总条目数 → 标记
+        eocd_new[12..16].copy_from_slice(&0xFFFF_FFFFu32.to_le_bytes()); // 目录大小 → 标记
+        eocd_new[16..20].copy_from_slice(&0xFFFF_FFFFu32.to_le_bytes()); // 目录偏移 → 标记
+        let mut out = Vec::with_capacity(raw.len() + 76);
+        out.extend_from_slice(&raw[..eocd]);
+        out.extend_from_slice(&z64);
+        out.extend_from_slice(&loc);
+        out.extend_from_slice(&eocd_new);
+        out
+    }
+
+    #[test]
+    fn zip64_duplicate_entries_rejected_by_conservation_gate() {
+        // R3-S3-1 负向：EOCD 0xFFFF 标记曾是守恒门豁免牌（实测绕过）——
+        // zip64 EOCD 声明 2 条 vs crate 吸收后实际 1 条 → 必须拒绝。
+        let p = tmp_zip("dup64");
+        write_zip(&p, &[("word/aaaa.xml", b"<a/>".to_vec()), ("word/bbbb.xml", b"<b/>".to_vec())]);
+        let raw = std::fs::read(&p).unwrap();
+        let dup = patch_central_name(&raw, "word/bbbb.xml", "word/aaaa.xml");
+        std::fs::write(&p, make_zip64(&dup, 2)).unwrap();
+        let err = open(&p, LIMIT_INPUT_BYTES_DOCX).unwrap_err();
+        assert!(matches!(err, GuardError::EntryCountMismatch { declared: 2, actual: 1 }), "{err}");
+    }
+
+    #[test]
+    fn legit_zip64_passes_conservation_gate() {
+        // R3-S3-1 正向对照：合法 zip64（声明 1 条 == 实际 1 条）不得误拒——
+        // 防"修门即全拒"的过拟合修复。
+        let p = tmp_zip("z64ok");
+        write_zip(&p, &[("word/document.xml", b"<a>ok</a>".to_vec())]);
+        let raw = std::fs::read(&p).unwrap();
+        std::fs::write(&p, make_zip64(&raw, 1)).unwrap();
+        let mut za = open(&p, LIMIT_INPUT_BYTES_DOCX).unwrap();
+        assert_eq!(za.len(), 1);
+        assert!(za.by_name("word/document.xml").is_ok());
+    }
+
     #[test]
     fn nested_archive_rejected() {
         let p = tmp_zip("nested");
@@ -816,6 +926,8 @@ mod tests {
 
     #[test]
     fn subprocess_nonzero_exit_classified() {
+        // P2-6②：全 T-04 测试纳入互斥锁（均触全局并发席，非仅四项）
+        let _g = SUBPROC_TEST_LOCK.lock().unwrap_or_else(|p| p.into_inner());
         let out = run_limited(sh("exit 3"), Duration::from_secs(10), 4096);
         match out {
             RunOutcome::NonZeroExit { code: Some(3), .. } => {}
@@ -825,6 +937,7 @@ mod tests {
 
     #[test]
     fn subprocess_success_roundtrip() {
+        let _g = SUBPROC_TEST_LOCK.lock().unwrap_or_else(|p| p.into_inner());
         let out = run_limited(sh("printf 'hello bid'"), Duration::from_secs(10), 4096);
         match out {
             RunOutcome::Success { stdout } => assert_eq!(stdout, "hello bid"),
@@ -834,6 +947,7 @@ mod tests {
 
     #[test]
     fn subprocess_spawn_failure_classified() {
+        let _g = SUBPROC_TEST_LOCK.lock().unwrap_or_else(|p| p.into_inner());
         let out = run_limited(Command::new("/nonexistent/binary/xyz"), Duration::from_secs(5), 4096);
         assert!(matches!(out, RunOutcome::Spawn { .. }), "{out:?}");
     }
@@ -851,6 +965,30 @@ mod tests {
         // 释放后恢复
         let out2 = run_limited(sh("true"), Duration::from_secs(5), 4096);
         assert!(out2.is_success(), "释放后应恢复，实际 {out2:?}");
+    }
+
+    #[test]
+    fn subprocess_stderr_flood_drained_not_blocked() {
+        let _g = SUBPROC_TEST_LOCK.lock().unwrap_or_else(|p| p.into_inner());
+        // R3-P2-4 负向（实测修正版）：256KB stderr。原 take(64KB+1) 读满即停后读线程退出
+        // **关闭管道读端** → 子进程后续 stderr 写收到 EPIPE/SIGPIPE 被杀（实测：非审计
+        // 原描述的“永久阻塞→Timeout”——关 FD 后阻塞不成立；真实危害 = verbose 合法
+        // 工具（如长渲染的 pdftoppm 告警流）被 SIGPIPE 中杀 → 误判 NonZeroExit）。
+        // && 使 sh 退出码依赖 dd 存活：旧行为 dd 被杀 → NonZeroExit；drain 后 → Success。
+        let started = std::time::Instant::now();
+        let out = run_limited(
+            sh("dd if=/dev/zero bs=1024 count=256 >&2 && echo done"),
+            Duration::from_secs(8),
+            4096,
+        );
+        match out {
+            RunOutcome::Success { stdout } => {
+                assert_eq!(stdout.trim(), "done", "stdout 应为载荷非 stderr 残留");
+            }
+            other => panic!("期望 Success（stderr 洪泛不得 SIGPIPE 中杀/误判），实际 {other:?}"),
+        }
+        assert!(started.elapsed() < Duration::from_secs(5),
+            "drain 生效应秒回，实际 {:?}", started.elapsed());
     }
 
     #[test]

@@ -3,8 +3,9 @@
 
 指标（test-plan §5 口径的真实文件子集）：
   - 召回（漏项）：GT 条款 ↔ REQ anchors 的归一化对齐命中
-  - 引用支持率：命中 REQ 的 anchor 可回查原文（excerpt 在对应页 pdftotext 文本中可归一化定位）
-  - 页码对齐：GT 页码 vs anchor locator 页码偏差
+  - 引用支持率（R3-S3-4 升级）：excerpt 归一串须出现在 anchor 自报页 ±1 内（跨页拆行容忍）
+    ——从「可回查」升为「回查对得上」；页外命中另记 supported_elsewhere 不计入支持
+  - 页码对齐：GT 页码 vs anchor locator 页码偏差（分布披露）
 诚实纪律：
   - GT 为 AI 初标草案——指标冠名「草案对齐」；
   - 误报不自动判定（需人工核 Other 类样本）——报告中给出抽样建议；
@@ -77,15 +78,25 @@ def main() -> int:
                     if rc[i : i + 12] in gtc:
                         hits.append(r)
                         break
-        # 引用支持率：首个命中的 anchor excerpt 回查原文页（页码 = locator 第N页）
+        # 引用支持率（R3-S3-4）：首个命中 anchor 的 excerpt 回查原文，
+        # 严格口径 = 归一串出现在 anchor 自报页 ±1 内（anchor 页与文档物理页自洽）；
+        # 页外命中另记 supported_elsewhere（不计支持，单独披露）——防「任意页子串」恒真。
         supported = None
+        supported_elsewhere = False
         page_delta = None
         if hits:
             a = hits[0]["anchors"][0]
             m = re.match(r"第(\d+)页", a["locator"])
             anchor_page = int(m.group(1)) if m else None
             core = norm_n2(a["excerpt"])[:20]
-            supported = any(core and core in p for p in pages_n2)
+            if anchor_page and 1 <= anchor_page <= len(pages_n2):
+                window = pages_n2[max(0, anchor_page - 2): anchor_page + 1]
+                supported = any(core and core in p for p in window)
+                supported_elsewhere = (not supported) and any(
+                    core and core in p for p in pages_n2)
+            else:
+                # 无页码锚（扫描件 OCR 通道等）：页对齐不可验，维持全文回查并在报告登记
+                supported = any(core and core in p for p in pages_n2)
             page_delta = (anchor_page - gt["page"]) if anchor_page else None
         results.append({
             "gt_id": gt["gt_id"],
@@ -99,6 +110,7 @@ def main() -> int:
             "category_match": bool(hits) and hits[0]["category"] == gt["category"],
             "matched_category": hits[0]["category"] if hits else None,
             "citation_supported": supported,
+            "supported_elsewhere": supported_elsewhere,
             "page_delta": page_delta,
         })
 
@@ -117,6 +129,14 @@ def main() -> int:
 
     misses = [r for r in results if not r["recall_hit"] or not r["category_match"]]
     mismatched = [r for r in results if r["recall_hit"] and not r["category_match"]]
+    # R3-S3-4：页偏差分布 + 页外命中披露（判据升级后指标不再依赖数据侥幸成立）
+    delta_dist = {}
+    for r in results:
+        if r["recall_hit"] and r["page_delta"] is not None:
+            k = str(r["page_delta"])
+            delta_dist[k] = delta_dist.get(k, 0) + 1
+    elsewhere = [r["gt_id"] for r in results
+                 if r["recall_hit"] and r.get("supported_elsewhere")]
     report = {
         "eval": "P2-real-file-score",
         "gt_status": "AI 初标草案（待人工验收）——指标为草案对齐结果，不外推为验收指标",
@@ -130,6 +150,9 @@ def main() -> int:
         "category_mismatches": mismatched,
         "citation_supported": supported_n,
         "citation_support_rate": round(supported_n / max(1, recalled), 4),
+        "citation_support_criterion": "严格：excerpt 归一串出现在 anchor 自报页 ±1（R3-S3-4；原任意页子串判据恒真风险已除）",
+        "supported_elsewhere_ids": elsewhere,
+        "page_delta_distribution": delta_dist,
         "by_category": by_cat,
         "misses": misses,
         "false_positive_note": "误报率不自动判定（'其他'类 2227 条含大量正文编号行噪声）——建议人工抽样 50 条 Other 类 REQ 核对（抽样协议同 test-plan §5.3）",
@@ -145,7 +168,10 @@ def main() -> int:
     )
     print(f"GT {total} 条：召回 {recalled}（{report['recall_rate']:.1%}）"
           f" | 类别命中 {cat_match}（{report['category_match_rate']:.1%}）"
-          f" | 引用支持 {supported_n}/{recalled}（{report['citation_support_rate']:.1%}）")
+          f" | 引用支持 {supported_n}/{recalled}（{report['citation_support_rate']:.1%}，锚点页±1 严格口径）")
+    if delta_dist:
+        print(f"  页偏差分布（anchor-GT）：{delta_dist}"
+              + (f" | 页外命中：{elsewhere}" if elsewhere else ""))
     for c, d in sorted(by_cat.items()):
         print(f"  {c}: 召回 {d['recall']}/{d['total']} | 类别一致 {d['cat_match']}")
     for m in misses:

@@ -19,6 +19,7 @@
       "category_match": false,
       "matched_category": "其他",
       "citation_supported": true,
+      "supported_elsewhere": false,
       "page_delta": 0
     },
     {
@@ -31,6 +32,7 @@
       "category_match": false,
       "matched_category": "资格条件",
       "citation_supported": true,
+      "supported_elsewhere": false,
       "page_delta": 0
     },
     {
@@ -43,6 +45,7 @@
       "category_match": false,
       "matched_category": "其他",
       "citation_supported": true,
+      "supported_elsewhere": false,
       "page_delta": 0
     },
     {
@@ -55,6 +58,7 @@
       "category_match": false,
       "matched_category": "其他",
       "citation_supported": true,
+      "supported_elsewhere": false,
       "page_delta": 0
     },
     {
@@ -67,6 +71,7 @@
       "category_match": false,
       "matched_category": "其他",
       "citation_supported": true,
+      "supported_elsewhere": false,
       "page_delta": 0
     },
     {
@@ -79,11 +84,18 @@
       "category_match": false,
       "matched_category": "否决项",
       "citation_supported": true,
+      "supported_elsewhere": false,
       "page_delta": 0
     }
   ],
   "citation_supported": 18,
   "citation_support_rate": 1.0,
+  "citation_support_criterion": "严格：excerpt 归一串出现在 anchor 自报页 ±1（R3-S3-4；原任意页子串判据恒真风险已除）",
+  "supported_elsewhere_ids": [],
+  "page_delta_distribution": {
+    "0": 17,
+    "-1": 1
+  },
   "by_category": {
     "资格条件": {
       "total": 6,
@@ -127,6 +139,7 @@
       "category_match": false,
       "matched_category": "其他",
       "citation_supported": true,
+      "supported_elsewhere": false,
       "page_delta": 0
     },
     {
@@ -139,6 +152,7 @@
       "category_match": false,
       "matched_category": null,
       "citation_supported": null,
+      "supported_elsewhere": false,
       "page_delta": null
     },
     {
@@ -151,6 +165,7 @@
       "category_match": false,
       "matched_category": "资格条件",
       "citation_supported": true,
+      "supported_elsewhere": false,
       "page_delta": 0
     },
     {
@@ -163,6 +178,7 @@
       "category_match": false,
       "matched_category": "其他",
       "citation_supported": true,
+      "supported_elsewhere": false,
       "page_delta": 0
     },
     {
@@ -175,6 +191,7 @@
       "category_match": false,
       "matched_category": "其他",
       "citation_supported": true,
+      "supported_elsewhere": false,
       "page_delta": 0
     },
     {
@@ -187,6 +204,7 @@
       "category_match": false,
       "matched_category": "其他",
       "citation_supported": true,
+      "supported_elsewhere": false,
       "page_delta": 0
     },
     {
@@ -199,6 +217,7 @@
       "category_match": false,
       "matched_category": "否决项",
       "citation_supported": true,
+      "supported_elsewhere": false,
       "page_delta": 0
     },
     {
@@ -211,6 +230,7 @@
       "category_match": false,
       "matched_category": null,
       "citation_supported": null,
+      "supported_elsewhere": false,
       "page_delta": null
     },
     {
@@ -223,6 +243,7 @@
       "category_match": false,
       "matched_category": null,
       "citation_supported": null,
+      "supported_elsewhere": false,
       "page_delta": null
     },
     {
@@ -235,6 +256,7 @@
       "category_match": false,
       "matched_category": null,
       "citation_supported": null,
+      "supported_elsewhere": false,
       "page_delta": null
     },
     {
@@ -247,6 +269,7 @@
       "category_match": false,
       "matched_category": null,
       "citation_supported": null,
+      "supported_elsewhere": false,
       "page_delta": null
     },
     {
@@ -259,6 +282,7 @@
       "category_match": false,
       "matched_category": null,
       "citation_supported": null,
+      "supported_elsewhere": false,
       "page_delta": null
     }
   ],
