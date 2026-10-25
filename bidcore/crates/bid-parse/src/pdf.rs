@@ -7,14 +7,17 @@
 //! 拒绝（不留可被误认为完整 OCR 的部分结果）。
 
 use crate::guard::{
-    self, LIMIT_PDFTOTEXT_STDOUT, LIMIT_TESSERACT_STDOUT, MAX_OCR_PAGES, TIMEOUT_PDFTOPPM,
-    TIMEOUT_PDFTOTEXT, TIMEOUT_TESSERACT, RunOutcome, TmpGuard,
+    self, LIMIT_INPUT_BYTES_PDF, LIMIT_PDFTOTEXT_STDOUT, LIMIT_TESSERACT_STDOUT, MAX_OCR_PAGES,
+    TIMEOUT_PDFTOPPM, TIMEOUT_PDFTOTEXT, TIMEOUT_TESSERACT, RunOutcome, TmpGuard,
 };
 use crate::{Block, BlockKind, ParsedFile};
 use std::path::Path;
 use std::process::Command;
 
 pub fn parse(path: &Path) -> Result<ParsedFile, String> {
+    // R3-S3-2：PDF 输入字节门（docx/xlsx 有门而 PDF 曾无门——与 guard 家族对齐）
+    guard::check_input_size(path, LIMIT_INPUT_BYTES_PDF)
+        .map_err(|e| format!("pdf 防护拒绝: {e}"))?;
     let mut text_cmd = Command::new("pdftotext");
     text_cmd.arg("-layout").arg(path.as_os_str()).arg("-");
     let text = guard::run_limited(text_cmd, TIMEOUT_PDFTOTEXT, LIMIT_PDFTOTEXT_STDOUT)
@@ -56,10 +59,13 @@ pub fn parse(path: &Path) -> Result<ParsedFile, String> {
         summary = format!("pdf 文本层: {pages} 页 {} 行块", blocks.len());
     } else {
         // T-04：扫描页数门——超限整体显式拒绝（渲染/OCR 成本与磁盘占用上限；
-        // 拒绝整个文件，绝不产出「只 OCR 了前 N 页」的部分结果）
-        if pages > MAX_OCR_PAGES {
+        // 拒绝整个文件，绝不产出「只 OCR 了前 N 页」的部分结果）。
+        // R3-S1-1 修正：pdftotext 对扫描件输出近空文本，非空分页数恒为 1——
+        // 门不得依赖该值；真实页数以 pdfinfo 探测为准，渲染层另加 -l 上限双保险。
+        let real_pages = probe_pdf_pages(path).unwrap_or(pages);
+        if real_pages > MAX_OCR_PAGES {
             return Err(format!(
-                "pdf 扫描层 {pages} 页超过 OCR 上限 {MAX_OCR_PAGES}（拒绝处理——不留部分结果，请拆分文件）"
+                "pdf 扫描层 {real_pages} 页超过 OCR 上限 {MAX_OCR_PAGES}（拒绝处理——不留部分结果，请拆分文件）"
             ));
         }
         has_text_layer = false;
@@ -69,6 +75,7 @@ pub fn parse(path: &Path) -> Result<ParsedFile, String> {
         let mut render_cmd = Command::new("pdftoppm");
         render_cmd
             .args(["-r", "200", "-gray", "-png"])
+            .args(["-l", &real_pages.to_string()]) // 渲染上限双保险（R3-S1-1：探测与实际不一致时仍不超渲染）
             .arg(path.as_os_str())
             .arg(&prefix);
         let render = guard::run_limited(render_cmd, TIMEOUT_PDFTOPPM, 4096);
@@ -171,6 +178,27 @@ fn short_err(out: &RunOutcome) -> String {
     }
 }
 
+/// 真实页数探测（pdfinfo，poppler 自带）——扫描件页数的诚实口径；
+/// 探测失败回退 pdftotext 分页数（保守场景由渲染 -l 上限兕底）。
+fn probe_pdf_pages(path: &Path) -> Option<usize> {
+    let mut c = Command::new("pdfinfo");
+    c.arg(path.as_os_str());
+    let out = guard::run_limited(c, TIMEOUT_PDFTOTEXT, 64 * 1024);
+    if !out.is_success() {
+        return None;
+    }
+    if let RunOutcome::Success { stdout } = out {
+        for line in stdout.lines() {
+            if let Some(rest) = line.strip_prefix("Pages:") {
+                if let Ok(n) = rest.trim().parse::<usize>() {
+                    return Some(n);
+                }
+            }
+        }
+    }
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -186,6 +214,43 @@ mod tests {
         assert_eq!(LIMIT_PDFTOTEXT_STDOUT, 64 * 1024 * 1024);
         assert_eq!(LIMIT_TESSERACT_STDOUT, 1024 * 1024);
         assert_eq!(MAX_OCR_PAGES, 200);
+    }
+
+    /// R3-S1-1 回归门：超页扫描件必须被页数门拒绝（绝不开始渲染）。
+    /// 201 页空白扫描 PDF 由 python3+reportlab 现场生成（环境无 reportlab 则跳过）。
+    #[test]
+    fn oversized_scanned_pdf_rejected_before_render() {
+        let tmp = std::env::temp_dir().join(format!("bidparse_ocr_limit_{}", std::process::id()));
+        std::fs::create_dir_all(&tmp).unwrap();
+        let pdf = tmp.join("oversize_201p.pdf");
+        let gen = std::process::Command::new("python3")
+            .arg("-c")
+            .arg(
+                "from reportlab.pdfgen import canvas; \
+                 import sys; \
+                 c = canvas.Canvas(sys.argv[1]); \
+                 [c.showPage() for _ in range(201)]; \
+                 c.save()",
+            )
+            .arg(&pdf)
+            .output();
+        match gen {
+            Ok(g) if g.status.success() => {
+                let started = std::time::Instant::now();
+                let r = parse(&pdf);
+                match r {
+                    Err(e) => {
+                        assert!(e.contains("超过 OCR 上限"), "必须是页数门拒绝，实际 {e}");
+                        // 门在渲染前生效：不得耗 OCR 时间（201 页 OCR 需数百秒）
+                        assert!(started.elapsed().as_secs() < 30,
+                            "拒绝必须在渲染前返回，实际 {:?}", started.elapsed());
+                    }
+                    Ok(_) => panic!("201 页扫描 PDF 必须被拒绝（R3-S1-1 门失效）"),
+                }
+            }
+            _ => eprintln!("跳过：环境无 python3+reportlab（生成器缺件）"),
+        }
+        let _ = std::fs::remove_dir_all(&tmp);
     }
 }
 

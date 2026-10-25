@@ -112,9 +112,11 @@ fn extract_main_pdf(f: &ParsedFile, reqs: &mut Vec<Requirement>, seq: &mut usize
         if let Some(m) = re_clause.captures(t) {
             let mut params = HashMap::new();
             fill_params(t, &re_model, &re_amount, &re_date, &re_date, &mut params);
-            // 编号行自带资格面 → 资格条件（P2："1.4.1 投标人资质条件、能力和信誉"类，
-            // 章节 subsection 为数字小节时 category_for 的盲区）；其余按章节上下文
-            let cat = if re_qual.is_match(&anchor_text) {
+            // 编号行归类优先级（R3-S3-5）：强否决短语 > 资格面 > 章节上下文——
+            // 编号否决条款（如"3.4.2 …将被否决"）不得落"其他"（漏否决=废标风险）
+            let cat = if re_veto.is_match(&anchor_text) {
+                "否决项"
+            } else if re_qual.is_match(&anchor_text) {
                 "资格条件"
             } else {
                 category_for(&chapter, &subsection)

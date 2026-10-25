@@ -94,22 +94,29 @@ def main() -> int:
             "recall_hit": bool(hits),
             "matched_reqs": len(hits),
             "first_clause_no": hits[0]["clause_no"] if hits else None,
+            # R3-S2-3：分类命中校验——命中 REQ 的类别与 GT 类别是否一致（错类命中
+            # 不得计入分类召回；整体召回仍计但另记 category_mismatch）
+            "category_match": bool(hits) and hits[0]["category"] == gt["category"],
+            "matched_category": hits[0]["category"] if hits else None,
             "citation_supported": supported,
             "page_delta": page_delta,
         })
 
     total = len(results)
     recalled = sum(1 for r in results if r["recall_hit"])
+    cat_match = sum(1 for r in results if r["recall_hit"] and r["category_match"])
     supported_n = sum(1 for r in results if r["recall_hit"] and r["citation_supported"])
     by_cat = {}
     for r in results:
         c = r["category"]
-        d = by_cat.setdefault(c, {"total": 0, "recall": 0, "supported": 0})
+        d = by_cat.setdefault(c, {"total": 0, "recall": 0, "cat_match": 0, "supported": 0})
         d["total"] += 1
         d["recall"] += 1 if r["recall_hit"] else 0
+        d["cat_match"] += 1 if (r["recall_hit"] and r["category_match"]) else 0
         d["supported"] += 1 if (r["recall_hit"] and r["citation_supported"]) else 0
 
-    misses = [r for r in results if not r["recall_hit"]]
+    misses = [r for r in results if not r["recall_hit"] or not r["category_match"]]
+    mismatched = [r for r in results if r["recall_hit"] and not r["category_match"]]
     report = {
         "eval": "P2-real-file-score",
         "gt_status": "AI 初标草案（待人工验收）——指标为草案对齐结果，不外推为验收指标",
@@ -118,6 +125,9 @@ def main() -> int:
         "gt_total": total,
         "recall": recalled,
         "recall_rate": round(recalled / total, 4),
+        "category_match": cat_match,
+        "category_match_rate": round(cat_match / total, 4),
+        "category_mismatches": mismatched,
         "citation_supported": supported_n,
         "citation_support_rate": round(supported_n / max(1, recalled), 4),
         "by_category": by_cat,
@@ -134,11 +144,14 @@ def main() -> int:
         json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8"
     )
     print(f"GT {total} 条：召回 {recalled}（{report['recall_rate']:.1%}）"
+          f" | 类别命中 {cat_match}（{report['category_match_rate']:.1%}）"
           f" | 引用支持 {supported_n}/{recalled}（{report['citation_support_rate']:.1%}）")
     for c, d in sorted(by_cat.items()):
-        print(f"  {c}: {d['recall']}/{d['total']}")
+        print(f"  {c}: 召回 {d['recall']}/{d['total']} | 类别一致 {d['cat_match']}")
     for m in misses:
-        print(f"  ✗ 漏项 {m['gt_id']}（{m['category']}）")
+        tag = "错类" if m["recall_hit"] else "漏项"
+        print(f"  ✗ {tag} {m['gt_id']}（期望 {m['category']}"
+              + (f"，实得 {m['matched_category']}" if m["recall_hit"] else "") + "）")
     return 0
 
 

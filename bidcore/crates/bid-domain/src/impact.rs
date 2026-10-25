@@ -55,6 +55,7 @@ pub struct Section {
 #[derive(Debug, Clone)]
 pub struct Conflict {
     pub versions: Vec<(String, i64)>, // (source, value)
+    pub gt_ids: Vec<String>,        // 关联 GT（R3-P2-2：门禁从冲突记录自身取，不耦合最近 spec）
     pub resolved: bool,
     pub final_value: Option<i64>,
     pub rule: String,
@@ -267,6 +268,7 @@ impl ImpactEngine {
                 ("A-招标文件.docx".into(), 4_800_000),
                 (fname.into(), spec.control_price),
             ],
+            gt_ids: spec.conflict_gt_ids.clone(),
             resolved: false,
             final_value: None,
             rule: "补遗优先（后到有效版本覆盖）".into(),
@@ -334,11 +336,8 @@ impl ImpactEngine {
     }
 
     /// ACCEPTED 门禁：脏章节或未裁决冲突关联章节均不得 ACCEPTED（零副作用拒绝）。
+    /// R3-P2-2：关联 GT 从各冲突记录自身取（不耦合最近一次 addendum_spec）。
     pub fn try_accept(&mut self, section_id: &str) -> Result<(), AcceptBlock> {
-        let conflict_gts: Vec<String> = self.addendum_spec
-            .as_ref()
-            .map(|s| s.conflict_gt_ids.clone())
-            .unwrap_or_default();
         {
             let v = self.sections.get(section_id).expect("章节存在");
             if v.dirty {
@@ -347,7 +346,7 @@ impl ImpactEngine {
             let unresolved: Vec<String> = self.conflicts
                 .iter()
                 .filter(|(_, c)| !c.resolved)
-                .filter(|(_, _)| v.related.iter().any(|g| conflict_gts.contains(g)))
+                .filter(|(_, c)| v.related.iter().any(|g| c.gt_ids.contains(g)))
                 .map(|(k, _)| k.clone())
                 .collect();
             if !unresolved.is_empty() {

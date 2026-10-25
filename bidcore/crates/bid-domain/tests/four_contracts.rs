@@ -51,9 +51,10 @@ fn c1_addendum_cascade_dirty_exact_and_version_bump() {
         vec!["商务部分-报价", "技术方案-网络与安全", "资格响应"],
         "DIRTY 章节必须恰为三——多则影响面污染、少则级联漏网"
     );
-    // R1：GT-18 v2 生效（latest_version_wins）
+    // R1：GT-18 v2 生效（latest_version_wins）——current_model + model_v2 双参数断言（R3-P2-2）
     let gt18 = eng.reqs().get("GT-18").unwrap();
     assert_eq!(gt18.params["current_model"].as_str().unwrap(), "USG6705E-AC650");
+    assert_eq!(gt18.params["model_v2"].as_str().unwrap(), "USG6705E-AC650", "model_v2 参数与 current_model 同源（补遗版本链）");
     // R1：CONFLICT-01 双版本登记
     let conflicts = eng.conflicts();
     assert_eq!(conflicts.len(), 1);
@@ -193,19 +194,29 @@ fn c2_rewrite_degrades_exactly_one_chain_and_never_rises() {
 
 #[test]
 fn c2_external_change_no_silent_adopt() {
+    // 外部修改重开（adopt 面）：指纹比对检测 → 不自动 adopt（R3-M-2：
+    // 检测路径走 refresh 而非 setter——外部改动的真实入口是内容变化而非显式声明）
     let locators = mk_locators(&["a", "b", "c"]);
     let chains: Vec<String> = locators.keys().cloned().collect();
     let mut ledger = LinkageLedger::new(&chains);
-
-    // 外部修改重开（adopt 面）：检测变化 → 不自动 adopt（Stale + 审计 + 转人工）
-    ledger.detect_external_change("GT-01");
-    assert_eq!(ledger.status_of("GT-01"), Some(LinkageStatus::Stale));
+    let fps_before = vec![text_fingerprint("a"), text_fingerprint("b"), text_fingerprint("c")];
+    let _ = ledger.refresh(true, &locators, &fps_before);
+    assert!(ledger.all_valid());
+    // 外部编辑第 1 段（指纹变化）→ refresh 检出 → Stale + 审计有痕（不自动 adopt）
+    let mut fps_after = fps_before.clone();
+    fps_after[0] = text_fingerprint("a（外部编辑）");
+    let degraded = ledger.refresh(true, &locators, &fps_after);
+    assert_eq!(degraded, vec!["GT-01"], "外部修改检出恰一链");
+    assert_eq!(ledger.status_of("GT-01"), Some(LinkageStatus::Stale), "不静默 adopt");
     assert!(!ledger.all_valid());
-    // 审计有痕（OfferChoice → 业务默认转人工——doc-engine-audit §5.3 边界）
     assert!(matches!(
         ledger.audit.last(),
-        Some(bid_domain::linkage::AuditEntry::ExternalChangeDetected { .. })
+        Some(bid_domain::linkage::AuditEntry::BodyRefresh { .. })
     ));
+    // adopt 裁决权归业务：显式重验（转人工复核后）才回升
+    let new_loc = LinkLocator { paragraph_index: 0, text_fingerprint: fps_after[0].clone() };
+    assert!(ledger.reverify("GT-01", &new_loc, &fps_after));
+    assert!(ledger.all_valid());
 }
 
 // ================================================================ C3 多轮重写后锚点正确
@@ -241,10 +252,6 @@ fn c3_five_round_rewrite_anchors_stay_correct() {
         let degraded = ledger.refresh(true, &locators, &fingerprints);
         // 恰一链降级（本轮改写者；此前轮次已显式重验恢复）
         assert_eq!(degraded, vec![victim.clone()], "第 {} 轮恰一链降级", round + 1);
-        // 零悬空：全部链 ID 仍可解析（status 存在即定位器有效）
-        for c in &chains {
-            assert!(ledger.status_of(c).is_some(), "书签 {c} 不得悬空");
-        }
         // 显式重验：rebind 到当前段落（同位置新指纹）→ 恢复 Valid
         let new_locator = LinkLocator {
             paragraph_index: round,
@@ -253,6 +260,15 @@ fn c3_five_round_rewrite_anchors_stay_correct() {
         assert!(ledger.reverify(&victim, &new_locator, &fingerprints), "重验必须成功");
         assert!(ledger.all_valid(), "每轮重验后全链恢复——下一轮基线干净");
         locators.insert(victim, new_locator);
+        // 零悬空（R3-M-1 真化断言，重验后时点）：每条链的定位器必须指向**当前
+        // 有效段**——索引在界内且指纹与该段当前指纹一致（victim 已 rebind，其余链未动）
+        for c in &chains {
+            let loc = &locators[c];
+            assert!(loc.paragraph_index < fingerprints.len(),
+                "书签 {c} 索引越界（悬空）");
+            assert_eq!(loc.text_fingerprint, fingerprints[loc.paragraph_index],
+                "书签 {c} 指纹失配（悬空——定位器与当前段不一致）");
+        }
     }
     // 五轮后：全链 valid + 每轮审计有痕（降级 5 条 + 重验 5 条）
     assert!(ledger.all_valid());

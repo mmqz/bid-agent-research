@@ -23,8 +23,11 @@ use zip::ZipArchive;
 // ---------------------------------------------------------------- 限额常量
 /// docx 族输入字节上限（对齐引擎 LIMIT_INPUT_BYTES_DOCX = 50MB + 2MB 余量）。
 pub const LIMIT_INPUT_BYTES_DOCX: u64 = 52 * 1024 * 1024;
-/// xlsx 族输入字节上限（对齐引擎 LIMIT_INPUT_BYTES = 300MB + 2MB 余量）。
+/// docx/xlsx 族输入字节上限（对齐引擎 LIMIT_INPUT_BYTES = 300MB + 2MB 余量）。
 pub const LIMIT_INPUT_BYTES_XLSX: u64 = 302 * 1024 * 1024;
+/// PDF 族输入字节上限（R3-S3-2：docx/xlsx 有门而 PDF 曾无门——任意大小直进 poppler；
+/// 500MB 纳入真实大标书 PDF（数百 MB 量级），超限拒绝在读取前）。
+pub const LIMIT_INPUT_BYTES_PDF: u64 = 500 * 1024 * 1024;
 
 /// zip 条目数上限（对齐引擎 LIMIT_ENTRY_COUNT）。
 pub const LIMIT_ENTRY_COUNT: usize = 10_000;
@@ -206,7 +209,10 @@ fn check_entry_name(name: &str) -> GResult<()> {
     if name.split('/').count() > LIMIT_PATH_DEPTH {
         return bad("路径深度超限");
     }
-    let ext = name.rsplit('.').next().unwrap_or("").to_lowercase();
+    let ext = name
+        .rsplit_once('.')
+        .map(|(_, e)| e.to_lowercase())
+        .unwrap_or_default(); // R3-P2-3：无点名字不得取全名当扩展名（"zip"裸名误判）
     if NESTED_ARCHIVE_EXTS.contains(&ext.as_str()) {
         return Err(GuardError::NestedArchive { name: name.to_string() });
     }
@@ -422,12 +428,17 @@ pub fn run_limited(mut cmd: Command, timeout: Duration, stdout_limit: u64) -> Ru
     };
     let started = Instant::now();
 
-    // 双读线程：防管道写满死锁；stdout 计量超限置溢出标志（轮询循环即时杀组）
+    // 双读线程：防管道写满死锁；stdout 计量超限置溢出标志（轮询循环即时杀组）。
+    // R3-S2-1：结果经 channel 发送，主线程限时接收——直接子进程退出但孙进程继承
+    // 持有管道时，读线程读不到 EOF，无界 join 会把 1s 超时拖成实际 60s+。
+    // 限时收不到 → 补杀进程组（孙进程被杀后管道关闭、线程自然退出释放）。
+    use std::sync::mpsc;
     let mut stdout_pipe = child.stdout.take().expect("stdout piped");
     let mut stderr_pipe = child.stderr.take().expect("stderr piped");
     let overflow = std::sync::Arc::new(AtomicBool::new(false));
     let ov_flag = overflow.clone();
     let out_limit = stdout_limit;
+    let (out_tx, out_rx) = mpsc::channel::<Vec<u8>>();
     let t_out = std::thread::spawn(move || {
         let mut buf: Vec<u8> = Vec::new();
         let mut limited = (&mut stdout_pipe).take(out_limit + 1);
@@ -436,13 +447,27 @@ pub fn run_limited(mut cmd: Command, timeout: Duration, stdout_limit: u64) -> Ru
         if buf.len() as u64 > out_limit {
             ov_flag.store(true, Ordering::SeqCst);
         }
-        buf
+        let _ = out_tx.send(buf);
     });
+    let (err_tx, err_rx) = mpsc::channel::<String>();
     let t_err = std::thread::spawn(move || {
-        let mut buf: Vec<u8> = Vec::new();
+        // stderr 读到 EOF 为止但只保留头 64KB（R3-P2-4：截停不读会让孙进程阻塞管道）
+        let mut head: Vec<u8> = Vec::new();
+        let mut sink = [0u8; 4096];
         let mut limited = (&mut stderr_pipe).take(LIMIT_SUBPROC_STDERR + 1);
-        let _ = std::io::Read::read_to_end(&mut limited, &mut buf);
-        String::from_utf8_lossy(&buf).to_string()
+        let mut done = false;
+        while !done {
+            match std::io::Read::read(&mut limited, &mut sink) {
+                Ok(0) | Err(_) => done = true,
+                Ok(n) => {
+                    if head.len() < LIMIT_SUBPROC_STDERR as usize {
+                        let room = LIMIT_SUBPROC_STDERR as usize - head.len();
+                        head.extend_from_slice(&sink[..n.min(room)]);
+                    }
+                }
+            }
+        }
+        let _ = err_tx.send(String::from_utf8_lossy(&head).to_string());
     });
 
     // 轮询等待：超时杀组 / 溢出即时杀组（截断输出不得被当成功消费）
@@ -470,9 +495,20 @@ pub fn run_limited(mut cmd: Command, timeout: Duration, stdout_limit: u64) -> Ru
         }
     }
 
-    let stdout_bytes = t_out.join().unwrap_or_default();
-    let stderr_all = t_err.join().unwrap_or_default();
-    let stderr_head: String = stderr_all.chars().take(160).collect();
+    // 限时收流（R3-S2-1）：1.5s 内读不到 = 孙进程持有管道——补杀组 + 归类 Timeout
+    // （线程留 detached，进程组被杀后管道关闭自然退出，无泄漏累积）。
+    let stdout_bytes = match out_rx.recv_timeout(Duration::from_millis(1500)) {
+        Ok(b) => b,
+        Err(_) => {
+            kill_process_tree(&child);
+            let _ = child.wait();
+            return RunOutcome::Timeout { program, secs: timeout.as_secs() };
+        }
+    };
+    let stderr_head: String = err_rx
+        .recv_timeout(Duration::from_millis(1500))
+        .map(|s| s.chars().take(160).collect())
+        .unwrap_or_default();
     drop(slot);
 
     // 竞态双检：子进程先退出但输出已溢出的场景（溢出优先——截断输出不算成功）
@@ -490,10 +526,19 @@ pub fn run_limited(mut cmd: Command, timeout: Duration, stdout_limit: u64) -> Ru
 }
 
 /// 临时目录 RAII：OCR 渲染的临时 PNG 区——超时/失败/正常路径统一回收（T-04 资源回收面）。
+/// R3-S2-2：目录名 = tag + pid + 全局计数 + 纳秒——调用级唯一（并发 4 席下两个
+/// 扫描件曾共享 tag+pid 目录交叉覆盖 page-*.png，静默污染 OCR 结果；崩溃残留的
+/// 同名复用同样被纳秒后缀消除）。
 pub struct TmpGuard(pub std::path::PathBuf);
 impl TmpGuard {
     pub fn new(tag: &str) -> std::io::Result<Self> {
-        let p = std::env::temp_dir().join(format!("bidparse_{tag}_{}", std::process::id()));
+        static GUARD_SEQ: AtomicUsize = AtomicUsize::new(0);
+        let seq = GUARD_SEQ.fetch_add(1, Ordering::SeqCst);
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let p = std::env::temp_dir().join(format!("bidparse_{tag}_{}_{seq}_{nanos}", std::process::id()));
         std::fs::create_dir_all(&p)?;
         Ok(Self(p))
     }

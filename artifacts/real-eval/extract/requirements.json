@@ -22790,7 +22790,7 @@
   },
   {
     "id": "REQ-1520",
-    "category": "其他",
+    "category": "否决项",
     "clause_no": "3.4.2",
     "anchors": [
       {
@@ -25040,7 +25040,7 @@
   },
   {
     "id": "REQ-1670",
-    "category": "评分项",
+    "category": "否决项",
     "clause_no": "3.1.2",
     "anchors": [
       {
@@ -35435,7 +35435,7 @@
   },
   {
     "id": "REQ-2363",
-    "category": "其他",
+    "category": "否决项",
     "clause_no": "10.7",
     "anchors": [
       {
@@ -36500,7 +36500,7 @@
   },
   {
     "id": "REQ-2434",
-    "category": "其他",
+    "category": "否决项",
     "clause_no": "3.4.2",
     "anchors": [
       {
@@ -37985,7 +37985,7 @@
   },
   {
     "id": "REQ-2533",
-    "category": "评分项",
+    "category": "否决项",
     "clause_no": "2.1.6",
     "anchors": [
       {

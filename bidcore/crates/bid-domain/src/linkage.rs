@@ -92,6 +92,9 @@ impl LinkageLedger {
 
     /// 外部修改检测（plan_reload 三分之 OfferChoice 前置）：检测到变化但
     /// **不自动 adopt**——登记审计、状态置 Stale，裁决权交业务（默认转人工）。
+    /// （R3-M-2 后测试改走 refresh 检测路径；本 API 留供 M3 引擎接入时
+    /// plan_reload 语义的显式登记面消费——保留不删。）
+    #[allow(dead_code)]
     pub fn detect_external_change(
         &mut self,
         cid: &str,

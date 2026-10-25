@@ -73,9 +73,9 @@
 
 ## 4. 残余风险与待办
 
-1. **T-03 压缩包炸弹限额——✅ 已实施关闭（M1.5，2026-10-25；cargo test 11 项）**：bid-parse/guard.rs——① 输入字节门（docx 52MB / xlsx 302MB，对齐引擎 LIMIT_INPUT_BYTES 族）② zip prescan 三门（条目数 10,000 / 单声明 300MB / 总声明 300MB）+ 压缩比门（>100:1 拒绝）③ **实际读取累计计量**（take 流式截停——声明值撒谎在此拦截，负向测试 lying_declaration 实证）④ EOCD 条目守恒门（zip crate HashMap 吸收同名条目面封死）⑤ 条目名五类拒绝（穿越/绝对路径/盘符/控制字符/深度 64）+ 嵌套归档载具拒绝 ⑥ XML 深度门 1000 ⑦ 流式 sha256。**测试驱动抓出 2 个真漏洞并修复**：目录条目（尾部 /）绕过名字门、HashMap 吸收重复条目。
+1. **T-03 压缩包炸弹限额——✅ 已实施关闭（M1.5，2026-10-25；cargo test 10 项 + R3 审计核验）**：bid-parse/guard.rs——① 输入字节门（docx 52MB / xlsx 302MB，对齐引擎 LIMIT_INPUT_BYTES 族）② zip prescan 三门（条目数 10,000 / 单声明 300MB / 总声明 300MB）+ 压缩比门（>100:1 拒绝）③ **实际读取累计计量**（take 流式截停——声明值撒谎在此拦截，负向测试 lying_declaration 实证）④ EOCD 条目守恒门（zip crate HashMap 吸收同名条目面封死）⑤ 条目名五类拒绝（穿越/绝对路径/盘符/控制字符/深度 64）+ 嵌套归档载具拒绝 ⑥ XML 深度门 1000 ⑦ 流式 sha256。**测试驱动抓出 2 个真漏洞并修复**：目录条目（尾部 /）绕过名字门、HashMap 吸收重复条目。
    **残余面（诚实登记）**：xlsx 的实际解压流在 calamine 黑盒内不可注入计量——入口三门已挡常规炸弹（声明值+压缩比）；声明撒谎骗过 prescan 后的 calamine 内部解压为残余（威胁极低：需构造声明值异常的畸形 zip）。
-2. **T-04 子进程超时——✅ 已实施关闭（M1.5，2026-10-25；cargo test 9 项）**：bid-parse/guard.rs run_limited——① 超时杀**进程组**（process_group(0)+kill(-pgid)——孙进程不残留）② stdout 上限 + 溢出即时杀（yes 类无限输出不等超时即收割）③ 结果五分类（Success/Timeout/OutputOverflow/NonZeroExit/Busy/Spawn）——超时/溢出/非零**永不误标成功**（timeout_never_lies_as_success 断言）④ 并发全局门（4 席满显式 Busy）⑤ TmpGuard RAII 临时目录全路径回收（超时/失败/正常）⑥ OCR 页数门 200（超出整体显式拒绝——不留部分结果）。
+2. **T-04 子进程超时——✅ 已实施关闭（M1.5，2026-10-25；cargo test 8 项 + R3 审计修正加固）**：bid-parse/guard.rs run_limited——① 超时杀**进程组**（process_group(0)+kill(-pgid)——孙进程不残留）② stdout 上限 + 溢出即时杀（yes 类无限输出不等超时即收割）③ 结果五分类（Success/Timeout/OutputOverflow/NonZeroExit/Busy/Spawn）——超时/溢出/非零**永不误标成功**（timeout_never_lies_as_success 断言）④ 并发全局门（4 席满显式 Busy）⑤ TmpGuard RAII 临时目录全路径回收（超时/失败/正常）⑥ OCR 页数门 200（超出整体显式拒绝——不留部分结果）。
 3. **T-10 起草层注入（L3 残余，不可穷举）**：已知模式扫描仅告警；唯一收口 = 人工审校门禁（审校态 AI 不可写，T-08 双层门禁）。
 4. **T-14 引擎侧 G3**：暗标元数据清零的业务侧缓解（zip 补丁）为过渡——引擎导出面产品化前，每次导出必须跑 T7d 断言（已入每轮回归）。
 5. T-15 供应链闭包审查待 M0 执行（NOTICES 机制）。
