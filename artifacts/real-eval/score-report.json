@@ -1,0 +1,107 @@
+{
+  "eval": "P2-real-file-score",
+  "gt_status": "AI 初标草案（待人工验收）——指标为草案对齐结果，不外推为验收指标",
+  "gt_file_target": "04_某水利工程施工标段_施工招标文件.pdf（142 页）",
+  "reqs_in_file": 898,
+  "gt_total": 24,
+  "recall": 18,
+  "recall_rate": 0.75,
+  "citation_supported": 18,
+  "citation_support_rate": 1.0,
+  "by_category": {
+    "资格条件": {
+      "total": 6,
+      "recall": 5,
+      "supported": 5
+    },
+    "否决项": {
+      "total": 7,
+      "recall": 7,
+      "supported": 7
+    },
+    "商务要求": {
+      "total": 4,
+      "recall": 4,
+      "supported": 4
+    },
+    "评分项": {
+      "total": 5,
+      "recall": 2,
+      "supported": 2
+    },
+    "技术参数": {
+      "total": 2,
+      "recall": 0,
+      "supported": 0
+    }
+  },
+  "misses": [
+    {
+      "gt_id": "GT-R05",
+      "category": "资格条件",
+      "risk": "中",
+      "recall_hit": false,
+      "matched_reqs": 0,
+      "first_clause_no": null,
+      "citation_supported": null,
+      "page_delta": null
+    },
+    {
+      "gt_id": "GT-S03",
+      "category": "评分项",
+      "risk": "高（评标核心算法）",
+      "recall_hit": false,
+      "matched_reqs": 0,
+      "first_clause_no": null,
+      "citation_supported": null,
+      "page_delta": null
+    },
+    {
+      "gt_id": "GT-S04",
+      "category": "评分项",
+      "risk": "高",
+      "recall_hit": false,
+      "matched_reqs": 0,
+      "first_clause_no": null,
+      "citation_supported": null,
+      "page_delta": null
+    },
+    {
+      "gt_id": "GT-S05",
+      "category": "评分项",
+      "risk": "中",
+      "recall_hit": false,
+      "matched_reqs": 0,
+      "first_clause_no": null,
+      "citation_supported": null,
+      "page_delta": null
+    },
+    {
+      "gt_id": "GT-T01",
+      "category": "技术参数",
+      "risk": "中",
+      "recall_hit": false,
+      "matched_reqs": 0,
+      "first_clause_no": null,
+      "citation_supported": null,
+      "page_delta": null
+    },
+    {
+      "gt_id": "GT-T02",
+      "category": "技术参数",
+      "risk": "低",
+      "recall_hit": false,
+      "matched_reqs": 0,
+      "first_clause_no": null,
+      "citation_supported": null,
+      "page_delta": null
+    }
+  ],
+  "false_positive_note": "误报率不自动判定（'其他'类 2227 条含大量正文编号行噪声）——建议人工抽样 50 条 Other 类 REQ 核对（抽样协议同 test-plan §5.3）",
+  "findings": [
+    "真实文件章节用阿拉伯数字（第2章）——已修 extract_main_pdf（首轮抓出，合成夹具中文数字形态掩盖）",
+    "多页扫描件页数错报（pdftotext 空文本层）——已修 OCR 渲染张数回写（02 号 8 页正确）",
+    "真实水利范本 subsection 为数字小节（1.4 资格要求），政采货物范本为中文序号——分类面 94% 落'其他'：M1 确定性分类器的场景局限（设计内：M2 模型归类补全；S2 场景裁决的实证输入）",
+    "前附表两列结构（layout 拆行）使跨行条款对齐依赖滑窗容忍——D1 表格结构抽取为已知差距（corpus-R D1a 已实证引擎面，业务侧 M2+）"
+  ]
+}

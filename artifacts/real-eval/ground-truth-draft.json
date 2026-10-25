@@ -1,0 +1,31 @@
+{
+  "ground_truth_status": "AI 初标草案（标注者=Z.ai，待人工验收——验收前所有指标为草案对齐结果，不外推为产品验收指标）",
+  "source_file": "04_某水利工程施工标段_施工招标文件.pdf（142 页，公开水利施工招标文件）",
+  "extraction_note": "页码以 pdftotext -layout 分页为准（物理页）；摘录取原文核心短语（对齐用 norm_n2 归一化子串/关键词命中）",
+  "items": [
+    {"gt_id": "GT-R01", "category": "资格条件", "page": 9, "excerpt": "投标人需具有独立法人资格，具有水利水电工程施工总承包三级（含三级）以上资质", "risk": "高（一票否决型资格）", "expected": "必须抽取并可定位到前附表/须知 1.4.1"},
+    {"gt_id": "GT-R02", "category": "资格条件", "page": 10, "excerpt": "投标截止时间）至少承担过一项类似工程施工的业绩", "risk": "高", "expected": "类似业绩条款抽取"},
+    {"gt_id": "GT-R03", "category": "资格条件", "page": 7, "excerpt": "本次招标实行资格后审，资格审查的具体要求见招标文件。资格后审不合格", "risk": "高", "expected": "资格后审机制条款"},
+    {"gt_id": "GT-R04", "category": "资格条件", "page": 34, "excerpt": "投标人名称应当与信息登记证、营业执照、资质证书、安全生产许可证一致", "risk": "中", "expected": "形式/资格审查条款"},
+    {"gt_id": "GT-R05", "category": "资格条件", "page": 9, "excerpt": "投标人资质条件、能力和信誉", "risk": "中", "expected": "资质总条款（前附表行）"},
+    {"gt_id": "GT-R06", "category": "资格条件", "page": 15, "excerpt": "由同一专业的单位组成的联合体，按照资质等级较低的单位确定资质等级", "risk": "中", "expected": "联合体资格条款"},
+    {"gt_id": "GT-V01", "category": "否决项", "page": 10, "excerpt": "一经发现，其投标将被否决，并没收其投标保证金", "risk": "高（保证金没收）", "expected": "弄虚作假否决条款"},
+    {"gt_id": "GT-V02", "category": "否决项", "page": 11, "excerpt": "在规定时间内转入投标保证金的做否决投标处理", "risk": "高", "expected": "保证金时限否决条款"},
+    {"gt_id": "GT-V03", "category": "否决项", "page": 19, "excerpt": "投标人不按本章第 3.4.1 项要求提交投标保证金的，其投标将被否决", "risk": "高", "expected": "保证金缺交否决（编号条款）"},
+    {"gt_id": "GT-V04", "category": "否决项", "page": 21, "excerpt": "共资源交易平台，该投标视为无效投标", "risk": "高", "expected": "递交渠道无效条款（跨行）"},
+    {"gt_id": "GT-V05", "category": "否决项", "page": 24, "excerpt": "投标人从其它施工单位通过转让或租借的方式获取资格或资质证书", "risk": "高", "expected": "挂靠借用资质否决"},
+    {"gt_id": "GT-V06", "category": "否决项", "page": 23, "excerpt": "经评标委员会评审后否决所有投标的", "risk": "中", "expected": "否决全部投标条款"},
+    {"gt_id": "GT-V07", "category": "否决项", "page": 12, "excerpt": "的，则取消其中标候选人资格", "risk": "中（跨行条款）", "expected": "取消中标资格条款"},
+    {"gt_id": "GT-B01", "category": "商务要求", "page": 11, "excerpt": "控制价 3496688.66", "risk": "高（报价红线）", "expected": "控制价金额抽取（含数值参数）"},
+    {"gt_id": "GT-B02", "category": "商务要求", "page": 9, "excerpt": "计划工期：180 日历天", "risk": "高", "expected": "工期参数抽取"},
+    {"gt_id": "GT-B03", "category": "商务要求", "page": 12, "excerpt": "招标控制价下浮率 K 值", "risk": "中", "expected": "下浮率条款（评标联动）"},
+    {"gt_id": "GT-B04", "category": "商务要求", "page": 23, "excerpt": "中标人无正当理由拒签合同的，招标人取消其中标资格", "risk": "中", "expected": "合同签订条款"},
+    {"gt_id": "GT-S01", "category": "评分项", "page": 38, "excerpt": "投标总报价：65 分", "risk": "高", "expected": "报价分值结构"},
+    {"gt_id": "GT-S02", "category": "评分项", "page": 38, "excerpt": "投标单价及总价承包项目报价的合理性：20 分", "risk": "中", "expected": "单价合理性分值"},
+    {"gt_id": "GT-S03", "category": "评分项", "page": 38, "excerpt": "采用招标控制价和有效报价的算术平均值确定评标基准价", "risk": "高（评标核心算法）", "expected": "基准价算法条款"},
+    {"gt_id": "GT-S04", "category": "评分项", "page": 39, "excerpt": "其投标报价在招标控制价下浮 15％（含 15％）", "risk": "高", "expected": "有效报价界定"},
+    {"gt_id": "GT-S05", "category": "评分项", "page": 26, "excerpt": "招标控制价下浮率 K 值为取值范围内的任意一个百分数，由投标人代表在", "risk": "中", "expected": "K 值抽取机制"},
+    {"gt_id": "GT-T01", "category": "技术参数", "page": 12, "excerpt": "技术指标或质量标准与设计施工图不符之处，以设计施工图为准", "risk": "中", "expected": "技术标准优先级条款"},
+    {"gt_id": "GT-T02", "category": "技术参数", "page": 34, "excerpt": "投标人已进行信息登记，资质符合招标文件投标人须知", "risk": "低", "expected": "形式响应条款"}
+  ]
+}

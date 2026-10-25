@@ -31,6 +31,9 @@ pub fn parse(path: &Path) -> Result<ParsedFile, String> {
     let mut has_text_layer = non_ws >= 16; // 空白/仅页码层判为无文本层
     let mut ocr_blocks = 0usize;
     let mut summary = String::new();
+    // pages 口径：文本层 = 非空分页数；扫描层 = 实际渲染页数（P2 真实文件驱动修正：
+    // 多页扫描件的 pdftotext 空文本不得把页数错报为 1——合成夹具 B2 单页曾掩盖）
+    let mut pages = pages;
 
     if has_text_layer {
         for (pi, page) in text.split('\u{c}').enumerate() {
@@ -79,6 +82,9 @@ pub fn parse(path: &Path) -> Result<ParsedFile, String> {
             .filter(|p| p.extension().and_then(|x| x.to_str()) == Some("png"))
             .collect();
         pngs.sort();
+        if !pngs.is_empty() {
+            pages = pngs.len(); // 扫描件页数以实际渲染张数为准（诚实页数，非文本层猜测）
+        }
         for (pi, png) in pngs.iter().enumerate() {
             let tessdata = std::path::PathBuf::from(
                 std::env::var("TESSDATA_PREFIX").unwrap_or_else(|_| {

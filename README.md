@@ -32,7 +32,8 @@
 - **已执行：V3 内核集成三问断言（SEMUL v1.0 全绿，run_tests T9）**——五轮重写引用保持（每轮恰一链降级+重验恢复+零悬空）；撤销只降不升（undo 不自发恢复）+ 外部修改不静默 adopt；两阶段导出中断一致性（EXPORTED ⟺ sha256 落库）。证据：`artifacts/v3/`；脚本：`scripts/v3_integration.py`。
 - **已执行（M1.5，2026-10-25）：Rust 工具链恢复 + T-03/T-04 安全加固 IMPLEMENTED**——cargo 1.99.1 与锁文件零漂移，全 workspace 真跑全绿（51 测试，含 e2e_m1 OCR 30s 真跑）：① bid-parse/guard.rs 压缩包防御（输入字节门/prescan 三门/压缩比/**实际读取累计计量——声明撒谎截停**/EOCD 守恒门/条目名五类拒绝/XML 深度/流式 sha256；负向 11 测试——测试驱动抓出 2 真漏洞：目录条目绕名门、zip crate HashMap 吸收重复条目）；② run_limited 子进程治理（超时杀**进程组**/溢出即时杀/结果五分类不误标成功/并发门 4 席/TmpGuard 全路径回收/OCR 页数门 200，挂死与无限输出样本回归）。
 - **已执行（P1-b/c，2026-10-25）：四关键案例 Rust 契约测试（Python SEMUL → IMPLEMENTED 双实现交叉）**——bid-domain 新增 impact.rs（影响面引擎）/linkage.rs（引用链只降不升+显式重验）/export_gate.rs（两阶段导出）+ four_contracts.rs 9 测试：①补遗级联失效（DIRTY 恰三章节/级联精确翻转/GT-13 维持禁绑/终裁门禁/幂等）②证据只降不升（改写恰一链/undo 不回升/外部不 adopt）③五轮重写锚点正确（每轮恰一链/零悬空/逐轮重验恢复）④导出中断无虚假 EXPORTED（停 EXPORTING/不变式/恢复幂等同 sha/与 ProjectStatus 终态对齐）。**三级状态词典（SIMULATED/IMPLEMENTED/INTEGRATION_TESTED）入 verification-plan §6——仿真通过不计入实装通过，分记不折抵**。
-- 进行中：研究验证阶段（verification-plan §7 顺序）——V0 ✅ → V1 ✅ → V2 ✅（双实现）→ V3 ✅（双实现）→ S1 ✅（T-03/T-04 已实施关闭）→ **M1.5 安全加固 + P1 四案例 Rust 化 ✅（2026-10-25）** → EXP-1 对照实验（Dify 侧待环境）/ P2 真实文件评测（启动中，样本就位）/ S3 首轮指标（待模型环境）→ 决策是否进入 MVP；S2 边界裁决待用户输入。
+- 进行中：研究验证阶段（verification-plan §7 顺序）——V0 ✅ → V1 ✅ → V2 ✅（双实现）→ V3 ✅（双实现）→ S1 ✅（T-03/T-04 已实施关闭）→ **M1.5 安全加固 + P1 四案例 Rust 化 ✅（2026-10-25）** → EXP-1 对照实验（Dify 侧待环境）/ S3 首轮指标（待模型环境）→ 决策是否进入 MVP；S2 边界裁决待用户输入。
+- **已执行（P2 第一轮 v0.1，2026-10-25）：真实文件评测**——五件真实公开水利招标文件（3 文本层 PDF + 1 纯扫描补遗 OCR 真跑 + zip 拒绝验证）× Rust 全链路；**召回 33%→75%（三轮修复）、引用支持 100%**；GT 草案 24 条待人工验收。评测驱动修 5 缺口（数字章节/扫描件页数/目录行/无编号否决-资格-评分三通道/续行窗）；实证"37/37 全绿 ≠ 系统可靠"（合成契约 vs 真实结构多样性不可互替）；已知差距登记 D1 表格拆行/OCR 噪声/技术语义归 M2。证据：`artifacts/real-eval/`（REPORT.md + score-report.json + GT 草案）。
 - 引擎侧协同：P0 能力需求（目录域/文档级格式/暗标元数据清零）已列 doc-engine-audit §6，经用户转达引擎团队排期；**V1 回填：G3 业务侧缓解已验（过渡）、G6 渲染复验价值坐实、G7 扩展为非正文定位器变体缺口（doc-engine-audit §4.1）**。
 
 ## 审计与验证脚本
