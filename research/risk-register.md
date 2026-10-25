@@ -49,7 +49,7 @@
 | 风险 | 对应设计（AD/契约） | 实现模块（M*） | 测试用例（TC*） | 测试结果 | 残余风险（层） |
 |---|---|---|---|---|---|
 | R-01 | AD-03 确定性切块；MCP §2 import 返回统计 | M1 解析与条款（bid-parse/bid-tools） | TC-01 | TESTED | 未编号/附件条款遗漏（L1→核对纪律，corpus-R 真实分布测试集验证）；扫描件 OCR 路径为登记边界非伪装支持（B2/D5a） |
-| R-02 | AD-03 双通道；MCP §5 search_evidence | M1 精确通道（bidcore/bid-kb）；M2 补语义通道 | TC-02 | 待执行 | 语义相关性误判（L3→人工抽检）；语义通道 M2 落地后补测 |
+| R-02 | AD-03 双通道；MCP §5 search_evidence | M1 精确通道（bidcore/bid-kb + m1 并行线）；M2 补语义通道 | TC-02 | PARTIAL | 语义相关性误判（L3→人工抽检）；精确通道 TESTED（bidcore e2e 25 查询×5 一致 + m1 并行线 25/25 含数值归一化 3500000≡350 万元），语义通道 M2 落地后补测 |
 | R-03 | MCP §5 valid_until 降权；MCP §7 确定性规则 | M2 + M4 | TC-03、TC-05、TC-09 | PARTIAL | 有效期基准解释错/选错文件（L2 规则解释 finding）；V2 R2 已验级联语义（SEMUL：基准日变更→全项目重检+精确翻转+零误翻） |
 | R-04 | MCP §6 强制绑定；Skill P6 引用键纪律 | M3 + M5 | TC-03、TC-04 | PARTIAL | 引用存在但内容不支持（L3→ReviewStatus 人工确认） |
 | R-05 | domain-model §2 DIRTY/content_version；MCP 通用 project_version | M1 状态机起 | TC-06、TC-08、TC-09 | PARTIAL | 影响面规则漏判（设计假设→EXP-2 实测；V2 已验设计语义 SEMUL：DIRTY 恰三章节/无关零误伤/终裁门禁/幂等——run_tests T8） |
@@ -72,6 +72,10 @@
 - **R-04 PARTIAL**：V1-b 定位器两级失效语义已验（SEMUL：10 链回查全 valid + 内容改写恰 1 链 stale_content + 结构漂移全体失效/书签重验恢复；run_tests T7b）；V3 Q1 五轮重写引用保持 + Q2 只降不升/不静默 adopt 再证（run_tests T9）——TC-04 引用支持率待 M3。
 - **R-05 PARTIAL**：V1-b GT-18 补遗版本链入引用链（latest_version_wins 落地）；V2 影响面规则已验设计语义（SEMUL：TC-09 六断言契约消费 + DIRTY 恰三章节 + 开标日级联全项目重检 + 无关零误伤 + 矛盾终裁门禁 + 幂等 no-op；run_tests T8）——TC-06/08（中断/换模型恢复）待 M2，与 bid-domain Rust 双实现交叉验证待 cargo；V3 Q3 导出中断两阶段一致性已验设计语义（EXPORTED ⟺ sha256 落库；run_tests T9）。
 - **R-11 PARTIAL**：V1-c/d 渲染级已验（LO headless：8 页硬断言 + 分页纪律 + 页眉页脚域；暗标四断言：禁字双面零命中 + docProps 清零 + 金丝雀防空洞绿；run_tests T7c/T7d）——Word/WPS 口径人工复验待（test-plan §5.5）。
+
+**m1 并行线证据注记（合并自远端 51dfb79/ecd7d97——被测系统 = `m1/` Rust 单 crate 首轮实现，判分口径 verification-plan §3.1）**：
+- R-01/TC-01：corpus-A 锚点覆盖 27/27=100%、对齐器召回 100%、parse_failures=0、missing_sequence=0；R-02/TC-02：exact 通道 25/25（含数值归一化）；R-06/TC-07：sha256 重放 no-op，files/chunks delta=0，双跑字节一致；R-14/TC-11：越级 draft_response_section → E_STATE 零副作用；R-15/TC-02：同查询 5 次结果完全一致（覆盖率→密度→导入序→块序确定性排序）。
+- m1/ 为并行会话首轮实现（单 crate 最小流水线），bidcore/ 五 crate 工作区为同源演进版——本矩阵 TESTED 状态以 bidcore 证据为准，m1 证据作并行佐证随仓保留（m1 回归门禁见 run_tests T10~T13）。
 
 **威胁模型 GAP 注记（S1 v1.0 建模发现，docs/threat-model.md）**：
 

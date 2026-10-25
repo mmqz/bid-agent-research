@@ -25,7 +25,7 @@
 
 **复议条件**：EXP-1 实测若显示 Dify 在 E2（补遗回退）/E3（中断恢复）/E5（状态迁移）成本相当或更低，则 AD-01/AD-02 的**理由区**按实测改写（决策本身仍可维持，但依据必须是实测维护成本而非缺陷指控）。出现强需求"非技术人员可视化编排单节点任务"时，可把单点原子能力外包给 Dify，业务状态机不迁移。
 
-## AD-02 编排采用路径 A：Skill 驱动封闭 Agent + 后端状态机 `VERIFIED_SOURCE（存活实证）+ DESIGN_ASSUMPTION（弱模型约束效果）`
+## AD-02 编排采用路径 A：Skill 驱动封闭 Agent + 后端状态机 `VERIFIED_SOURCE（存活实证）+ TESTED（M1 状态机 E_STATE 守卫与幂等，TC-07/TC-11）+ DESIGN_ASSUMPTION（弱模型约束效果——Skill evals 待测）`
 
 **决策**：路径 A（SKILL.md 定义路径 + 8~9 个 MCP 工具 + 后端状态机/领域库）优于路径 B（Agent 自由规划 / LangGraph 图编排）。MVP 直接按路径 A 实施。
 
@@ -40,7 +40,7 @@
 | 维护成本 | ✅ 状态机表+Skill 文档化，人均可维护 | ⚠️ 图结构演化需懂框架；bidcraft 12 agent 图是维护反例风险 |
 | 实证存活度 | LingYan / tender-master / claude-bid-gen 三个活跃实现（MIT） | bidcraft（Apache-2.0）单点存在，LUV803 宣称未深扫（UNVERIFIED） |
 
-**结论**：路径 B 元素（图编排）仅在"多 Agent 并行起草+复杂回退"需求出现时局部引入（bidcraft 可作那时对照），MVP 不需要（见 AD-04）。**v2 备注**：路径 A 对"低能力模型"的实际约束效果是 DESIGN_ASSUMPTION——TC-11（越级防护）+ Skill evals 执行后升 TESTED。
+**结论**：路径 B 元素（图编排）仅在"多 Agent 并行起草+复杂回退"需求出现时局部引入（bidcraft 可作那时对照），MVP 不需要（见 AD-04）。**v2 备注**：路径 A 对"低能力模型"的实际约束效果是 DESIGN_ASSUMPTION——TC-11（越级防护）+ Skill evals 执行后升 TESTED。**v3 回填**：M1 Rust 状态机（m1/src/state.rs）已实测 TC-11 越级 E_STATE 零副作用 + TC-07 sha256 幂等 no-op（run_tests T11b 把关）；弱模型约束效果仍待 Skill evals。
 
 ## AD-03 RAG 知识库选型：自建薄服务为默认，Dify API 为可选适配器，Cherry Studio 否决 `VERIFIED_SOURCE`
 

@@ -1,13 +1,21 @@
 #!/usr/bin/env python3
-"""run_tests.py — 每轮测试入口（test-plan §3 冒烟口径 + 夹具自检）
-
+"""run_tests.py — 每轮测试入口（test-plan §3 冒烟口径 + 夹具自检 + V1/V2/V3 验证 + m1 并行线）
 每轮开发/文档变更后运行：python3 scripts/run_tests.py
   T1 xref_check 常规模式（跨文档一致性，0 错误）
   T2 xref_check --inject（历史错误注入回归：R-11/R-14/TC-08 三处必须被捕获）
-  T3 夹具完整性：manifest sha256 逐文件校验 + 结构计数（25 埋点/6+5+4+5+3+2 分布/13 证据/40×8/20×6）
-  T4 埋点读回：25 条 GT 的 excerpt 逐字存在于对应源文件；B2 无文本层；B1/B3/C 关键串在位
-  T5 判分器自测（完美运行全绿 + 7 类破坏注入全捕获）
-  T6 确定性：重生成到临时目录，33 文件 sha256 全一致
+  T3 夹具完整性：manifest sha256 逐文件校验 + 结构计数（从 fixture_spec 派生，v0.5=44 文件含 corpus-R）
+  T4 埋点读回：GT excerpt 逐字存在于对应源文件；B2 无文本层；B1/B3/C 关键串在位（含 T4c-OCR 回读门禁）
+  T5 判分器自测（完美运行全绿 + 13 类破坏注入全捕获）
+  T6 确定性：重生成到临时目录，44 文件 sha256 全一致（corpus-A 39 + corpus-R 5）
+  T7 V1 四段验证（解析覆盖 / 引用回填 / 导出保真 / 暗标口径——脚本 v1_*.py）
+  T8 V2 影响面验证（TC-09 主场景 / 级联 / 无关不重跑 / 终裁门禁 / 幂等 / 规则覆盖）
+  T9 V3 内核集成三问（重写引用保持 / 撤销只降不升 / 导出中断一致性）
+  T10 m1 并行线工具链：cargo build --release + 单测（状态机守卫/幂等/OCR 规整）
+  T11 m1 四场景判分（TC-01/02/07/11）：G1/G2/G5/G7 全绿且失败集恰为 pending 三项
+       {G3_policy, G4_citation, G6_rules}（M2/M3/M4 范围——出现集合外失败即回归）
+  T12 m1 V1-a 解析覆盖：m1 产出 blocks.jsonl 对回 GT 锚点逐字命中（corpus-A 100% 标准）
+  T13 m1 确定性：同场景双跑 db/trace/blocks/chunks 四工件字节一致（含 OCR 通道）
+  （T10~T13 被测系统 = m1/ 单 crate 首轮实现，并行会话产出；bidcore/ 为演进版，回归在 cargo 侧）
 退出码：0 全绿 / 1 存在失败（CI 门禁用）
 """
 from __future__ import annotations
@@ -17,6 +25,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import os
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -26,6 +35,11 @@ import v1_corpus_r as R  # noqa: E402
 REPO = Path(__file__).resolve().parent.parent
 FIXTURES = REPO / "fixtures"
 CORPUS = FIXTURES / "corpus-A"
+M1_DIR = REPO / "m1"
+M1_BIN = M1_DIR / "target" / "release" / "m1"
+M1_SCOPE = ("G1_recall", "G2_exact", "G5_transitions", "G7_idempotency")
+M1_PENDING = {"G3_policy", "G4_citation", "G6_rules"}  # M2/M3/M4 范围——db 无该字段，判分器诚实 FAIL
+SCENARIOS = ("TC-01", "TC-02", "TC-07", "TC-11")
 # 期望文件数从规格派生（R2 P2-2：不再双处硬编码）
 #   5 主文件 + 13 证据 + 4 GT + 12 转换 + 2 查询集 + 2 缺陷草稿 + 1 corpus-R README + 5 corpus-R 结构层
 EXPECTED_MANIFEST_FILES = (5 + len(S.EVIDENCE_FILES) + 4 + len(S.TRANSITIONS) + 2 + 2 + 1
@@ -263,6 +277,107 @@ def t_readback():
     check("T4f 证据陷阱在位（EV-02 临界 11-25；EV-13 过期 2025-08-01）", ev_ok, ev_note)
 
 
+# ---------------------------------------------------------------- T7~T12：M1 Rust 流水线
+def _cargo() -> str | None:
+    return shutil.which("cargo") or str(Path.home() / ".cargo" / "bin" / "cargo")
+
+
+def _m1_run(scenario: str, out: Path) -> tuple[int, str]:
+    p = subprocess.run([str(M1_BIN), "run", "--scenario", scenario,
+                        "--corpus", str(CORPUS / "files"),
+                        "--queries", str(FIXTURES / "queries" / "exact-25.jsonl"),
+                        "--out", str(out)],
+                       capture_output=True, text=True, cwd=REPO)
+    return p.returncode, p.stdout + p.stderr
+
+
+def _grade_dims(run_dir: Path) -> dict:
+    """判分一次 M1 运行：返回 {维度: pass}（report.json 由 grade.py 写入）。"""
+    subprocess.run([sys.executable, "scripts/grade.py", "--run", str(run_dir)],
+                   capture_output=True, text=True, cwd=REPO)
+    rep = json.loads((run_dir / "report.json").read_text(encoding="utf-8"))
+    return {k: bool(v.get("pass")) for k, v in rep["dimensions"].items()}
+
+
+def _anchor_hit(block_texts: list[str], excerpt: str) -> bool:
+    """锚点命中双口径：① 单块逐字包含（原口径，文本层锚点走此路，严格度不变）
+    ② 回退：_norm_cn 归一化 + 相邻两块拼接——OCR/解析按视觉行出块，跨行锚点
+    （如 B2 GT-07 条款在扫描件上拆为 …作否决投 + 标处理 两行）需相邻块拼接才能逐字命中。
+    与 T4c 全页归一化同纪律且更严：限定相邻块对，不做全文件拼接/模糊匹配。"""
+    if any(excerpt in t for t in block_texts):
+        return True
+    ex = _norm_cn(excerpt)
+    if not ex:
+        return False
+    norms = [_norm_cn(t) for t in block_texts]
+    return any(ex in norms[i] + norms[i + 1] for i in range(len(norms) - 1))
+
+
+def t_m1():
+    print("[T10] m1 并行线 Rust 工具链（构建 + 单测）")
+    cargo = _cargo()
+    if not cargo:
+        check("T10a cargo 可用（~/.cargo/bin）", False, "未找到 cargo 工具链")
+        return
+    b = subprocess.run([cargo, "build", "--release"], capture_output=True, text=True,
+                       cwd=M1_DIR, env={**os.environ, "PATH": f"{Path.home()}/.cargo/bin:{os.environ['PATH']}"})
+    ok_build = b.returncode == 0 and M1_BIN.exists()
+    check("T10b m1 构建成功（cargo build --release）", ok_build,
+          fail_detail(b.stdout + b.stderr) if not ok_build else "")
+    t = subprocess.run([cargo, "test", "--release"], capture_output=True, text=True,
+                       cwd=M1_DIR, env={**os.environ, "PATH": f"{Path.home()}/.cargo/bin:{os.environ['PATH']}"})
+    n_ok = t.stdout.count("... ok") + t.stdout.count("test result: ok")
+    check("T10c m1 单测全绿（状态机守卫/幂等/OCR 规整）", t.returncode == 0 and "0 failed" in t.stdout,
+          fail_detail(t.stdout + t.stderr) if t.returncode else f"{n_ok} 项")
+    if not ok_build:
+        return
+
+    runs = REPO / "runs"
+    runs.mkdir(exist_ok=True)
+    for sc in SCENARIOS:
+        code, out = _m1_run(sc, runs / sc)
+        if code != 0:
+            check(f"T11 {sc} 场景运行（step expects 自检）", False, fail_detail(out))
+            return
+    check("T11a 四场景运行 step expects 自检零失败（TC-01/02/07/11）", True,
+          "create→import×3→extract→chunk→search×5→replay→guard 全部通过")
+
+    # 四场景判分：m1 范围四维全绿 + 失败集恰为 pending 三项
+    for sc in SCENARIOS:
+        dims = _grade_dims(runs / sc)
+        bad = [d for d in M1_SCOPE if not dims.get(d)]
+        unexpected = {d for d, v in dims.items() if not v} - M1_PENDING
+        check(f"T11b {sc} 判分：G1/G2/G5/G7 全绿且无范围外失败",
+              not bad and not unexpected,
+              f"失败维度: {sorted((d for d, v in dims.items() if not v))}" if bad or unexpected else "")
+
+    # T12：m1 V1-a 解析覆盖（blocks.jsonl 对回 GT 锚点——corpus-A 100% 标准）
+    print("[T12] m1 V1-a 解析覆盖（m1 实际产出 vs GT 锚点）")
+    blocks: dict[str, list[str]] = {}
+    for line in (runs / "TC-01" / "blocks.jsonl").read_text(encoding="utf-8").splitlines():
+        blk = json.loads(line)
+        blocks.setdefault(blk["file"], []).append(blk["text"])
+    miss, total = [], 0
+    for r in S.REQUIREMENTS:
+        for a in r["anchors"]:
+            total += 1
+            if not _anchor_hit(blocks.get(a["file"], []), a["excerpt"]):
+                miss.append(f"{r['gt_id']}@{a['file']}")
+    check(f"T12 锚点覆盖 {total - len(miss)}/{total}（corpus-A 100% 标准；含 GT-07×2 扫描件 OCR 跨行拼接 / GT-20×2 日期歧义）",
+          not miss, "; ".join(miss[:3]))
+
+    # T13：m1 确定性（双跑字节一致，含 OCR 通道）
+    print("[T13] m1 确定性（同场景双跑四工件字节一致）")
+    with tempfile.TemporaryDirectory() as td:
+        d1, d2 = Path(td) / "r1", Path(td) / "r2"
+        _m1_run("TC-01", d1)
+        _m1_run("TC-01", d2)
+        diff = [f for f in ("db.json", "trace.jsonl", "blocks.jsonl", "chunks.jsonl")
+                if (d1 / f).read_bytes() != (d2 / f).read_bytes()]
+        check("T13 双跑 db/trace/blocks/chunks 字节一致（OCR 通道含 OMP_THREAD_LIMIT=1 钉版）",
+              not diff, "; ".join(diff))
+
+
 # ---------------------------------------------------------------- T5/T6
 def t_grade():
     print("[T5] 判分器自测")
@@ -391,7 +506,7 @@ def t_v3():
 
 def main() -> int:
     print("=" * 62)
-    print("ai-bid-research 每轮测试（V0 夹具 + 一致性 + 判分器 + V1/V2/V3 验证）")
+    print("ai-bid-research 每轮测试（V0 夹具 + 一致性 + 判分器 + V1/V2/V3 验证 + m1 并行线）")
     print("=" * 62)
     t_xref()
     t_fixture_integrity()
@@ -401,6 +516,7 @@ def main() -> int:
     t_v1()
     t_v2()
     t_v3()
+    t_m1()
     print("-" * 62)
     print(f"结果：{len(_passed)} 通过 / {len(_failed)} 失败")
     if _failed:

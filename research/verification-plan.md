@@ -90,6 +90,15 @@ fixtures/
 
 **口径声明**：V1-b/V1-c 的定位器与指纹为引擎 CONTRACT 语义的 Python 仿真（ooxml_util，FNV-1a 64 公开向量对齐）——验证的是**链路设计与判定语义**，引擎本体接入后的运行时行为属 M1+ ENGINE_RUN 口径；双 Office 复验待人工。
 
+**V1-a 首轮执行结果（TESTED，被测系统 = `m1/` Rust 流水线——并行会话首轮实现，合并自远端 ecd7d97；bidcore/ 为同源演进版）**：
+- **锚点覆盖 27/27 = 100%**（含 GT-07 扫描件 OCR 锚点、GT-20 中文大写日期锚点、GT-11 表格单元格锚点）——达 corpus-A 100% 通过标准；corpus-R D1/D5 分层待真实样本就绪后补跑。
+- 判分（四场景）：G1 召回 100%（对齐器通道，REQ 零自报 gt_ids）；G2 精确 25/25（含数值归一化："3500000"≡"350 万元"）；G5 场景断言 TC-01（7 条）/TC-02（2 条）/TC-07（2 条）/TC-11（2 条）全过；G7 幂等 no-op。
+- 确定性：同场景双跑 db/trace/blocks/chunks 四工件**字节一致**（含 OCR 通道：OMP_THREAD_LIMIT=1 + 钉版 tessdata 入仓）。
+- **诚实边界**：G3 矩阵/G4 引用/G6 规则为 M2/M3/M4 范围，db 不含该字段、判分器按缺字段 FAIL（m1 判分门禁把关失败集恰为 pending 三项）；TC-09 补遗级联属 V2；B2 夹具在本轮发现并修复 P0 零墨缺陷（见 fixture v0.4 提交 51dfb79）——OCR 残余噪声（标题误识等）入 D5 矩阵。
+- 工具链口径：poppler pdftotext/pdfimages + tesseract 5.5.0 chi_sim(fast)（sha256 入仓）；OCR 标点全角回正为确定性规整（m1/src/canon.rs，附单测）。
+
+**口径注记**：m1 双跑字节一致（db/trace/blocks/chunks）为流水线工件级确定性证据；B2 夹具 P0 修复（51dfb79）与本地 c1e1d5d 系修复同源——合并取本地像素自证版。
+
 ### 3.2 V2：补遗/答疑/版本影响面计算
 
 **验证内容**：以 TC-09 为骨架扩展为影响面矩阵实测（EXP-2）：
