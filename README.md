@@ -30,7 +30,9 @@
 - **已执行：V1 文件解析→最终 DOCX 导出全链路四段验证（v1.0 四段全绿，run_tests 26 项）**——①解析覆盖（corpus-A 文本层锚点 26/26 + corpus-R 结构探针 11/11，非正文盘点归因 G7）；②引用回填（10 链两级定位回查 + 结构漂移/书签重验语义，SEMUL 口径）；③导出保真（LO headless 8 页硬断言 + 分页纪律/页眉页脚域/图片/合并表）；④暗标口径（禁字双面零命中 + docProps 清零 + 金丝雀防空洞绿）。证据：`artifacts/v1/`；脚本：`scripts/v1_*.py`。
 - **已执行：V2 补遗/答疑/版本影响面计算验证（v1.0 七断言组全绿，run_tests T8）**——TC-09 六断言契约消费 + DIRTY 恰三章节（无关零误伤）+ 开标日级联（GT-02 翻转 EXPIRED/EV-13 维持禁绑/零误翻）+ 矛盾终裁门禁（终裁前不得 ACCEPTED）+ 幂等 no-op + 删除/新增规则（合成层）。证据：`artifacts/v2/`；脚本：`scripts/v2_impact.py`。
 - **已执行：V3 内核集成三问断言（SEMUL v1.0 全绿，run_tests T9）**——五轮重写引用保持（每轮恰一链降级+重验恢复+零悬空）；撤销只降不升（undo 不自发恢复）+ 外部修改不静默 adopt；两阶段导出中断一致性（EXPORTED ⟺ sha256 落库）。证据：`artifacts/v3/`；脚本：`scripts/v3_integration.py`。
-- 进行中：研究验证阶段（verification-plan §7 顺序）——V0 ✅ → V1 ✅ → V2 ✅ → V3 ✅（SEMUL）→ **S1 ✅（threat-model v1.0：建模发现 T-03/T-04 两 GAP）→ EXP-1 对照实验（Dify 侧待环境）/ S3 首轮指标（待模型环境）** → 决策是否进入 MVP；S2 边界裁决待用户输入。
+- **已执行（M1.5，2026-10-25）：Rust 工具链恢复 + T-03/T-04 安全加固 IMPLEMENTED**——cargo 1.99.1 与锁文件零漂移，全 workspace 真跑全绿（51 测试，含 e2e_m1 OCR 30s 真跑）：① bid-parse/guard.rs 压缩包防御（输入字节门/prescan 三门/压缩比/**实际读取累计计量——声明撒谎截停**/EOCD 守恒门/条目名五类拒绝/XML 深度/流式 sha256；负向 11 测试——测试驱动抓出 2 真漏洞：目录条目绕名门、zip crate HashMap 吸收重复条目）；② run_limited 子进程治理（超时杀**进程组**/溢出即时杀/结果五分类不误标成功/并发门 4 席/TmpGuard 全路径回收/OCR 页数门 200，挂死与无限输出样本回归）。
+- **已执行（P1-b/c，2026-10-25）：四关键案例 Rust 契约测试（Python SEMUL → IMPLEMENTED 双实现交叉）**——bid-domain 新增 impact.rs（影响面引擎）/linkage.rs（引用链只降不升+显式重验）/export_gate.rs（两阶段导出）+ four_contracts.rs 9 测试：①补遗级联失效（DIRTY 恰三章节/级联精确翻转/GT-13 维持禁绑/终裁门禁/幂等）②证据只降不升（改写恰一链/undo 不回升/外部不 adopt）③五轮重写锚点正确（每轮恰一链/零悬空/逐轮重验恢复）④导出中断无虚假 EXPORTED（停 EXPORTING/不变式/恢复幂等同 sha/与 ProjectStatus 终态对齐）。**三级状态词典（SIMULATED/IMPLEMENTED/INTEGRATION_TESTED）入 verification-plan §6——仿真通过不计入实装通过，分记不折抵**。
+- 进行中：研究验证阶段（verification-plan §7 顺序）——V0 ✅ → V1 ✅ → V2 ✅（双实现）→ V3 ✅（双实现）→ S1 ✅（T-03/T-04 已实施关闭）→ **M1.5 安全加固 + P1 四案例 Rust 化 ✅（2026-10-25）** → EXP-1 对照实验（Dify 侧待环境）/ P2 真实文件评测（启动中，样本就位）/ S3 首轮指标（待模型环境）→ 决策是否进入 MVP；S2 边界裁决待用户输入。
 - 引擎侧协同：P0 能力需求（目录域/文档级格式/暗标元数据清零）已列 doc-engine-audit §6，经用户转达引擎团队排期；**V1 回填：G3 业务侧缓解已验（过渡）、G6 渲染复验价值坐实、G7 扩展为非正文定位器变体缺口（doc-engine-audit §4.1）**。
 
 ## 审计与验证脚本

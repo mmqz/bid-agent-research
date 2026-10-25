@@ -2,22 +2,18 @@
 //! 输出与文档顺序一致的块序列（段落 / 表格行），并维护章节上下文（章 → 节 → 条款号前缀）
 //! 作为 locator —— 下游条款抽取与影响面分析的位置真源。
 
+use crate::guard::{self, LIMIT_ACTUAL_READ_DOCX, LIMIT_INPUT_BYTES_DOCX, LIMIT_XML_DEPTH};
 use crate::{Block, BlockKind, ParsedFile};
 use quick_xml::events::Event;
 use quick_xml::Reader;
-use std::io::Read;
 use std::path::Path;
 
 pub fn parse(path: &Path) -> Result<ParsedFile, String> {
-    let file = std::fs::File::open(path).map_err(|e| e.to_string())?;
-    let mut zf = zip::ZipArchive::new(file).map_err(|e| e.to_string())?;
-    let mut doc_xml = String::new();
-    {
-        let mut f = zf
-            .by_name("word/document.xml")
-            .map_err(|e| format!("缺 word/document.xml: {e}"))?;
-        f.read_to_string(&mut doc_xml).map_err(|e| e.to_string())?;
-    }
+    // T-03 防御链：输入字节门 → prescan 三门 → 受限读取（实际累计计量）→ XML 深度门
+    let mut zf = guard::open_guarded(path, LIMIT_INPUT_BYTES_DOCX)
+        .map_err(|e| format!("zip 防护拒绝: {e}"))?;
+    let doc_xml = guard::read_entry_limited(&mut zf, "word/document.xml", LIMIT_ACTUAL_READ_DOCX)
+        .map_err(|e| format!("读取防护拒绝: {e}"))?;
 
     let mut reader = Reader::from_str(&doc_xml);
     reader.config_mut().trim_text(true);
@@ -50,9 +46,18 @@ pub fn parse(path: &Path) -> Result<ParsedFile, String> {
         blocks.push(Block { idx, kind: BlockKind::Para, locator, text: text.to_string(), cells: vec![] });
     }
 
+    // T-03：XML 嵌套深度门（引擎 LIMIT_XML_DEPTH 同构；深嵌套耗内存/CPU 面）
+    let mut depth: usize = 0;
+
     loop {
         match reader.read_event() {
-            Ok(Event::Start(e)) => match e.name().as_ref() {
+            Ok(Event::Start(e)) => {
+                depth += 1;
+                if depth > LIMIT_XML_DEPTH {
+                    return Err(format!(
+                        "XML 嵌套深度超限 {depth} > {LIMIT_XML_DEPTH}（防护拒绝）"));
+                }
+                match e.name().as_ref() {
                 b"w:tbl" => {
                     in_table = true;
                     table_idx += 1;
@@ -75,7 +80,8 @@ pub fn parse(path: &Path) -> Result<ParsedFile, String> {
                     capture_text = true;
                 }
                 _ => {}
-            },
+                }
+            }
             Ok(Event::Text(t)) => {
                 if capture_text {
                     let txt = t.unescape().map_err(|e| e.to_string())?;
@@ -92,7 +98,10 @@ pub fn parse(path: &Path) -> Result<ParsedFile, String> {
                     para_text.push(' ');
                 }
             }
-            Ok(Event::End(e)) => match e.name().as_ref() {
+            Ok(Event::End(e)) => {
+                // 递减先于 match——`continue` 跳段也不会漏计（saturating 防负）
+                depth = depth.saturating_sub(1);
+                match e.name().as_ref() {
                 b"w:p" => {
                     in_para = false;
                     capture_text = false;
@@ -141,7 +150,8 @@ pub fn parse(path: &Path) -> Result<ParsedFile, String> {
                     in_table = false;
                 }
                 _ => {}
-            },
+                }
+            }
             Ok(Event::Eof) => break,
             Ok(_) => {}
             Err(e) => return Err(format!("XML 事件错误: {e}")),

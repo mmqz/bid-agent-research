@@ -29,8 +29,8 @@
 |---|---|---|---|---|---|---|
 | T-01 | 恶意 Office 宏/OLE 载体（docm/xlsm 伪装） | 上传面 | office-io 读面仅走数据结构解析（宏不执行）；容器门+消毒链（§2.7） | 上传类型白名单：仅 docx/xlsx/pdf（宏载体格式直接拒收）；失败件隔离禁引（R-01 缓解） | M0 上传检查单；解析器拒收测试（恶意扩展名） | DESIGN_ASSUMPTION（M0 落地） |
 | T-02 | PDF JavaScript 动作/嵌入对象 | 上传面 | mdc-pdf ExtractText 仅提取文本（JS 不执行） | 同 T-01 白名单；poppler 提取路径无执行面 | 解析器单测 + 组件版本矩阵（test-plan §5.2） | VERIFIED_SOURCE（poppler 行为） |
-| T-03 | **压缩包炸弹**（高压缩比 XLSX/DOCX 撑爆内存） | 解析面 | office-io XLSX 三门 + 稀疏炸弹闭环（fd 校准实测，§2.7） | **GAP（本次建模发现）**：bid-parse xlsx 走 calamine `worksheet_range` 全量入内存、docx 走流式但无解压总量上限——引擎三门在 office-io 侧，bid-parse 适配层未挂限额 | 待补：bid-parse 限额单测（构造高压缩比样本 → 拒绝或限量解析） | **GAP → 待补（P1）** |
-| T-04 | **外部解析器挂死**（畸形 PDF 卡住 pdftoppm/tesseract） | 解析面 | —（引擎自有渲染线不依赖外部进程） | **GAP（本次建模发现）**：bid-parse pdf.rs 子进程 `cmd.output()` 无超时——挂死即 DoS（注：arg 数组调用无 shell，命令注入面不存在） | 待补：`Command::output()` 包 timeout（如 60s）+ 挂死样本单测 | **GAP → 待补（P1）** |
+| T-03 | **压缩包炸弹**（高压缩比 XLSX/DOCX 撑爆内存） | 解析面 | office-io XLSX 三门 + 稀疏炸弹闭环（fd 校准实测，§2.7） | **已实施（M1.5，2026-10-25）**：bid-parse/guard.rs 挂五门——输入字节/prescan 三门/压缩比/**实际读取累计计量（声明撒谎截停）**/EOCD 守恒门 + 条目名拒绝 + XML 深度；负向测试 11 项全绿（含 lying_declaration 撒谎样本）；测试驱动抓出 2 真漏洞（目录条目绕名门/HashMap 吸收重复）并修复 | 已实施：guard.rs 11 测试 + corpus-A 回归 | **IMPLEMENTED（残余：calamine 黑盒内部解压，入口三门已挡常规面）** |
+| T-04 | **外部解析器挂死**（畸形 PDF 卡住 pdftoppm/tesseract） | 解析面 | —（引擎自有渲染线不依赖外部进程） | **已实施（M1.5，2026-10-25）**：run_limited——超时杀进程组/溢出即时杀/五分类/并发门 4 席/TmpGuard 全路径回收/OCR 页数门 200；挂死样本（sleep 30 超时 1.2s 杀）与无限输出样本（yes 溢出即时杀）回归入测 | 已实施：guard.rs 8 测试 + corpus-A OCR 链路回归 | **IMPLEMENTED** |
 | T-05 | 超大文件资源耗尽 | 上传面 | 写面限额（MAX_PARAGRAPHS/RUNS；G11 容量匹配） | 上传大小上限（M0 检查单）+ 解析块数统计返回（import 返回 stats 供核对） | M0 检查单；import stats 契约 | DESIGN_ASSUMPTION |
 
 ### 2.2 越权与外发
@@ -73,11 +73,13 @@
 
 ## 4. 残余风险与待办
 
-1. **T-03 压缩包炸弹限额（GAP，P1）**：bid-parse 适配层（calamine 全量内存 / zip 解压总量）未挂引擎三门——待补限额单测与实现（建议：文件解压后总量上限 + 单表行数上限，超限拒绝并登记失败件）。
-2. **T-04 子进程超时（GAP，P1）**：`Command::output()` 包 timeout + 挂死样本回归。
+1. **T-03 压缩包炸弹限额——✅ 已实施关闭（M1.5，2026-10-25；cargo test 11 项）**：bid-parse/guard.rs——① 输入字节门（docx 52MB / xlsx 302MB，对齐引擎 LIMIT_INPUT_BYTES 族）② zip prescan 三门（条目数 10,000 / 单声明 300MB / 总声明 300MB）+ 压缩比门（>100:1 拒绝）③ **实际读取累计计量**（take 流式截停——声明值撒谎在此拦截，负向测试 lying_declaration 实证）④ EOCD 条目守恒门（zip crate HashMap 吸收同名条目面封死）⑤ 条目名五类拒绝（穿越/绝对路径/盘符/控制字符/深度 64）+ 嵌套归档载具拒绝 ⑥ XML 深度门 1000 ⑦ 流式 sha256。**测试驱动抓出 2 个真漏洞并修复**：目录条目（尾部 /）绕过名字门、HashMap 吸收重复条目。
+   **残余面（诚实登记）**：xlsx 的实际解压流在 calamine 黑盒内不可注入计量——入口三门已挡常规炸弹（声明值+压缩比）；声明撒谎骗过 prescan 后的 calamine 内部解压为残余（威胁极低：需构造声明值异常的畸形 zip）。
+2. **T-04 子进程超时——✅ 已实施关闭（M1.5，2026-10-25；cargo test 9 项）**：bid-parse/guard.rs run_limited——① 超时杀**进程组**（process_group(0)+kill(-pgid)——孙进程不残留）② stdout 上限 + 溢出即时杀（yes 类无限输出不等超时即收割）③ 结果五分类（Success/Timeout/OutputOverflow/NonZeroExit/Busy/Spawn）——超时/溢出/非零**永不误标成功**（timeout_never_lies_as_success 断言）④ 并发全局门（4 席满显式 Busy）⑤ TmpGuard RAII 临时目录全路径回收（超时/失败/正常）⑥ OCR 页数门 200（超出整体显式拒绝——不留部分结果）。
 3. **T-10 起草层注入（L3 残余，不可穷举）**：已知模式扫描仅告警；唯一收口 = 人工审校门禁（审校态 AI 不可写，T-08 双层门禁）。
 4. **T-14 引擎侧 G3**：暗标元数据清零的业务侧缓解（zip 补丁）为过渡——引擎导出面产品化前，每次导出必须跑 T7d 断言（已入每轮回归）。
 5. T-15 供应链闭包审查待 M0 执行（NOTICES 机制）。
 
-> 以上 GAP 与待办已回填 risk-register（R-09/R-10/R-13 相关行注记）；T-03/T-04 建
-> 议随 M1.5（解析器加固）一并处理——在真实用户文件接入前完成。
+> 以上 GAP 与待办已回填 risk-register（R-09/R-10/R-13 相关行注记）；T-03/T-04 已于
+> M1.5 完成（真实施装 + 负向测试 + corpus-A 回归全绿，见 verification-plan §6 三级词典）——
+> 真实用户文件接入前完成的安全前置已就位。

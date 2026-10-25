@@ -23,6 +23,7 @@ quick-xml = "0.36"
 zip = "4"
 calamine = "0.28"
 unicode-normalization = "0.1"
+libc = "0.2"
 
 [profile.release]
 debug = false

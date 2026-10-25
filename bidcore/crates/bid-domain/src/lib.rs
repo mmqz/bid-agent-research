@@ -9,6 +9,15 @@
 //! M1 范围：项目状态机前段（DRAFT→FILES_IMPORTED→REQUIREMENTS_EXTRACTED）+
 //! 幂等键存储 + content_version 乐观并发 + E_STATE 越级防护（TC-11）+
 //! 幂等重放（TC-07）。矩阵/起草/审校/导出的后段状态在 M2+ 扩展。
+//!
+//! M1.5 扩展（V2/V3 SEMUL 语义实装——四关键案例契约测试的载体）：
+//! - [`impact`]：影响面引擎（补遗级联/DIRTY/content_version/终裁门禁/幂等）；
+//! - [`linkage`]：证据链状态账本（只降不升 + 显式重验 + 外部修改不自动 adopt）；
+//! - [`export_gate`]：两阶段导出门（EXPORTING → sha256 落库为界 → EXPORTED）。
+
+pub mod export_gate;
+pub mod impact;
+pub mod linkage;
 
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};

@@ -1,10 +1,19 @@
 //! XLSX 解析：calamine 读全工作表行。图纸目录/量价清单的读面（写面属 M3+ 文档内核）。
+//!
+//! T-03 防护边界（诚实登记）：calamine 是黑盒全量内存加载，实际解压流不可注入计量；
+//! 本层在入口做三道防线——输入字节门 + zip prescan 三门 + 压缩比门。
+//! 残余面（声明值撒谎骗过 prescan 后 calamine 内部解压）登记 threat-model T-03。
 
+use crate::guard::{self, LIMIT_INPUT_BYTES_XLSX};
 use crate::{Block, BlockKind, ParsedFile};
 use calamine::{open_workbook_auto, Data, Reader};
 use std::path::Path;
 
 pub fn parse(path: &Path) -> Result<ParsedFile, String> {
+    // T-03：输入字节门 + prescan（条目数/单声明/总声明/压缩比/异常名）。
+    // 打开后立即丢弃归档句柄——calamine 自行重开；此处只做拒绝裁决。
+    guard::open_guarded(path, LIMIT_INPUT_BYTES_XLSX)
+        .map_err(|e| format!("zip 防护拒绝: {e}"))?;
     let mut wb = open_workbook_auto(path).map_err(|e| e.to_string())?;
     let mut blocks: Vec<Block> = Vec::new();
     let sheet_names = wb.sheet_names().to_vec();
