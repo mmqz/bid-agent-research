@@ -20,6 +20,8 @@
 | [docs/doc-engine-audit.md](docs/doc-engine-audit.md) | **文档引擎只读审计**（mdcore + cleanroom-analysis，源码锚点级）：块锚点/证据三态/八步闭环/ReviewPolicy/Office/PDF 能力面；差距矩阵 G1~G11；集成边界映射（两系统共同维护版本与证据关系）；引擎能力需求清单 P0/P1/P2 | 引擎成熟度高于预期，集成从"自建薄适配"改为"对齐既有契约"；P0 缺口=目录域/文档级格式/暗标元数据清零（需引擎团队排期）；**2026-10-25 复核：引擎仓同步至 c33bcab，三锚点全部仍有效** |
 | [docs/engine-capability-requests-g1g3.md](docs/engine-capability-requests-g1g3.md) | **G1/G2/G3 引擎能力需求提交材料**（2026-10-25）：三缺口的最新源码直引（非转述）+ 验收条件 + 依赖 + 业务侧现状（G1 域路径先例/G3 zip 补丁过渡）+ 责任边界声明 | 经用户转达引擎团队；引擎仓只读红线不破 |
 | [docs/mvp-implementation-plan.md](docs/mvp-implementation-plan.md) | MVP 实施顺序（M0~M5） | M3 起接真实内核（接口按 AD-07 修订对齐） |
+| [research/real-scenario-library.md](research/real-scenario-library.md) | **真实场景库 v1.0（2026-10-26）**：cpa-multi-plugins 45 条生产 issues 全量吸收——12 类故障模式分类学 × 四契约/T-03/T-04/G1~G3 同构映射 × SC-01~12 用例（来源 issue# + oracle + 覆盖状态 + 排期） | issue 库=场景设计源，公开文件=数据基准，不可互替；45 条全覆盖可溯源（原始证据 research/raw/cpa-issues/） |
+| [research/audit-r5.md](research/audit-r5.md) | **R5 独立复审报告**（R4 自查独立性补偿轮）：23 探针全自建 + 34 项负向测试假绿猎杀零假绿 + 0e50961 五项修复声明逐项独立复证 + 主代理处置决议 | 推翻 R4"守恒门 7 类变体无绕过"（exotica 绕过族三形态 S3 登记，修复排 M1.6）；cargo 53/53 + run_tests 46/46 独立复跑 |
 
 ## 架构一句话总结
 
@@ -35,9 +37,11 @@
 - **已执行（P1-b/c，2026-10-25）：四关键案例 Rust 契约测试（Python SEMUL → IMPLEMENTED 双实现交叉）**——bid-domain 新增 impact.rs（影响面引擎）/linkage.rs（引用链只降不升+显式重验）/export_gate.rs（两阶段导出）+ four_contracts.rs 9 测试：①补遗级联失效（DIRTY 恰三章节/级联精确翻转/GT-13 维持禁绑/终裁门禁/幂等）②证据只降不升（改写恰一链/undo 不回升/外部不 adopt）③五轮重写锚点正确（每轮恰一链/零悬空/逐轮重验恢复）④导出中断无虚假 EXPORTED（停 EXPORTING/不变式/恢复幂等同 sha/与 ProjectStatus 终态对齐）。**三级状态词典（SIMULATED/IMPLEMENTED/INTEGRATION_TESTED）入 verification-plan §6——仿真通过不计入实装通过，分记不折抵**。
 - 进行中：研究验证阶段（verification-plan §7 顺序）——V0 ✅ → V1 ✅ → V2 ✅（双实现）→ V3 ✅（双实现）→ S1 ✅（T-03/T-04 已实施关闭）→ **M1.5 安全加固 + P1 四案例 Rust 化 ✅（2026-10-25）** → EXP-1 对照实验（Dify 侧待环境）/ S3 首轮指标（待模型环境）→ 决策是否进入 MVP；S2 边界裁决待用户输入。
 - **已执行（P2 第一轮 v0.1，2026-10-25）：真实文件评测**——五件真实公开水利招标文件（3 文本层 PDF + 1 纯扫描补遗 OCR 真跑 + zip 拒绝验证）× Rust 全链路；**召回 33%→75%（三轮修复）、引用支持 100%**；GT 草案 24 条待人工验收。评测驱动修 5 缺口（数字章节/扫描件页数/目录行/无编号否决-资格-评分三通道/续行窗）；实证"37/37 全绿 ≠ 系统可靠"（合成契约 vs 真实结构多样性不可互替）；已知差距登记 D1 表格拆行/OCR 噪声/技术语义归 M2。证据：`artifacts/real-eval/`（REPORT.md + score-report.json + GT 草案）。
+- **已执行（R5 独立复审，2026-10-26）：R4 自查轮独立性补偿**——独立子代理 + 23 探针全自建（R4 样本已丢失，零参考）复证 0e50961 五项修复声明全部属实；34 项负向测试假绿猎杀零假绿；**推翻 R4"守恒门 7 类变体无绕过"**——新登记 exotica 绕过族三形态（尾部垃圾出窗/影子 EOCD/zip32 字段分歧，A6 同族端态、当期无可利用面），修复排 M1.6；本会话独立基线：cargo 53/53 + run_tests 46/46（chi_sim 环境缺件曾响亮红，按 fixtures-requirements.txt 契约补装后全绿——缺件不静默过绿再获实证）。证据：research/audit-r5.md。
+- **已执行（真实场景吸收 v1.0，2026-10-26）**：cpa-multi-plugins 45 条生产 issues 全量抓取吸收——12 类故障模式分类学 → 四契约/T-03/T-04/G1~G3 同构映射（已有覆盖如实标注测试锚点）→ SC-01~12 真实场景用例；定位：issue 库=场景设计源，公开文件=数据基准，不可互替；45 条全覆盖可溯源，原始证据入 research/raw/cpa-issues/。S2 裁决前不虚构政府采购/企业采购覆盖，P2 第二轮默认沿工程类扩展。证据：research/real-scenario-library.md。
 - 引擎侧协同：P0 能力需求（目录域/文档级格式/暗标元数据清零）已列 doc-engine-audit §6，经用户转达引擎团队排期；**V1 回填：G3 业务侧缓解已验（过渡）、G6 渲染复验价值坐实、G7 扩展为非正文定位器变体缺口（doc-engine-audit §4.1）**。
 
 ## 审计与验证脚本
 
 - 审计：`scripts/gh_audit.py`（元数据+文件树+README 取证）、`scripts/gh_search.py`（补充仓库搜索）、`scripts/gh_deep.py`（关键源码抽检）。Token 经环境变量注入，不入库。
-- 验证：`scripts/run_tests.py`（每轮 37 项：xref 一致性/夹具完整性/埋点读回/判分器自测/确定性/V1 四段/V2 影响面/V3 三问）；`scripts/v1_pipeline.py`（V1-a 解析覆盖）、`scripts/v1_export.py`（V1-c 导出保真）、`scripts/v1_citation.py`（V1-b 引用回填）、`scripts/v1_darkbid.py`（V1-d 暗标口径）、`scripts/v1_corpus_r.py`（corpus-R 结构层生成）、`scripts/v2_impact.py`（V2 影响面验证）、`scripts/v3_integration.py`（V3 内核集成三问）、`scripts/ooxml_util.py`（确定性 zip + 引擎指纹/定位器语义仿真）。
+- 验证：`scripts/run_tests.py`（每轮 46 项：xref 一致性/夹具完整性/埋点读回/判分器自测/确定性/V1 四段/V2 影响面/V3 三问 + m1 并行线 12 项；环境契约缺件响亮红不静默跳过）；`scripts/v1_pipeline.py`（V1-a 解析覆盖）、`scripts/v1_export.py`（V1-c 导出保真）、`scripts/v1_citation.py`（V1-b 引用回填）、`scripts/v1_darkbid.py`（V1-d 暗标口径）、`scripts/v1_corpus_r.py`（corpus-R 结构层生成）、`scripts/v2_impact.py`（V2 影响面验证）、`scripts/v3_integration.py`（V3 内核集成三问）、`scripts/ooxml_util.py`（确定性 zip + 引擎指纹/定位器语义仿真）。
