@@ -46,7 +46,7 @@ MCP_TOOLS = [
 # V1 四段验证引入：对应链路的一段已自动验证，其余待后续阶段，细节入矩阵下方注记块）
 RESULT_VOCAB = {"待执行", "TESTED", "VERIFIED_SOURCE", "DESIGN_ASSUMPTION", "PENDING", "PARTIAL", "通过", "FAIL", "WAIVED"}
 # 宇宙断言（R2 审计 P0-4/5）：期望的风险集与用例集——双表一致删除/解析归零在此处硬失败
-EXPECTED_R = {f"R-{i:02d}" for i in range(1, 16)}
+EXPECTED_R = {f"R-{i:02d}" for i in range(1, 18)}  # 受控扩展：R-16/R-17（M1.7 真实链执行轮新增）
 EXPECTED_TC = {f"TC-{i:02d}" for i in range(1, 13)}
 PROJECT_STATES = [
     "DRAFT", "FILES_IMPORTED", "REQUIREMENTS_EXTRACTED", "MATRIX_READY",

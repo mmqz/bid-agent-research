@@ -35,6 +35,8 @@
 | R-13 | 提示注入（招标文件正文内嵌"忽略规则"类指令） | LingYan 把防注入写进 Skill 纪律 | MEDIUM | 解析产物标记为**不可信数据**；Skill 纪律 + 敏感指令模式扫描（L2 扫描可穷举已知模式；**L3 残余**：注入不可穷举——纵深靠数据/指令隔离 + 工具参数化，非仅关键词扫描） | TC-05 规则 8；安全威胁模型补充（verification-plan §5.4） |
 | R-14 | 低能力模型 Agent 自由规划跑偏（跳过矩阵/直接写稿） | tender-master"顺序锁死，禁止跨步"的设计动机 | HIGH | 封闭 Agent + Skill 阶段门禁 + 后端状态机 E_STATE 拒绝越级调用（L2） | TC-11 状态机越级防护（v2 修正记录见文首变更说明） |
 | R-15 | 双路检索交替合并排序不稳，同一查询不同时间结果漂移 | ark alternatingMerge 无全局稳定排序（抽检发现） | MEDIUM | 检索结果确定性 tie-breaker（score, evidence_id）；查询指纹缓存（L2） | TC-02 重复执行一致性 |
+| R-16 | 文件级验证输入（招标文件本体+补遗文件成对）获取受阻：附件在官方页面公开存在，但本环境全部二进制通道（curl/无头浏览器/公共代理/存档服务）被 ccgp WAF 阻断 | M1.7 执行实证（2026-10-26：四通道均 403；WebFetch 仅文本层） | HIGH | 公告级条款级配对先行闭环（更正公告逐条引用原招标文件条款原文）；文件本体转人工获取（GT-M17-24）；获取后入 T10 复验 | T10b（公告级已验）；文件级待人工 |
+| R-17 | 真实数据 GT 为初标草案未人工冻结，相关准确率被误当正式验收结果 | 用户裁决口径（2026-10-26）：未冻结前仅作探索性指标 | MEDIUM | review_status=draft_pending_human 全量机检（T10 P4）+ EXPLORATORY 标注纪律 + 冻结协议（接受/退回修订，不凑数） | T10 P4（24 条字段完备+逐字读回+引擎吻合） |
 
 ## 处置优先级建议
 
@@ -63,6 +65,8 @@
 | R-13 | domain-model 数据标记；Skill 纪律 | M1 + M5 | TC-05 规则 8 | 待执行 | 不可穷举注入（L3 残余→人工审校门禁收口；确定性解析层结构性免疫=T-10 TESTED 面，起草层见 threat-model.md） |
 | R-14 | AD-02 路径 A；MCP E_STATE | M1 状态机（bid-domain） | TC-11 | TESTED | — |
 | R-15 | MCP §5 tie-breaker | M1（bid-kb 四级排序） | TC-02 | TESTED | — |
+| R-16 | 公告级条款级配对先行 + 文件本体人工获取协议（s2-scenario-plan §2） | M1.7 真实链（real-corpus/gov-procurement） | T10b | PARTIAL | 公告级闭环 34 断言全绿（REAL_DATA+DESIGN_ENGINE 口径）；文件级待人工输入，**不得宣称文件级验收** |
+| R-17 | GT 冻结协议（s2-scenario-plan §2 M1.7-C） | gt/ground-truth-draft.jsonl 24 条 | T10 P4 | PENDING | 24/24 draft_pending_human；机器预核通过（engine 吻合/逐字读回/manual 计数=1）；冻结前指标仅 EXPLORATORY |
 
 **验证状态注记（v0.5 合并口径——bidcore M1 端到端 + V1 四段验证双线回填；词典见 verification-plan §6）**：
 

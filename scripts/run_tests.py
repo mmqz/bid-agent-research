@@ -8,6 +8,7 @@
   T4 埋点读回：25 条 GT 的 excerpt 逐字存在于对应源文件；B2 无文本层；B1/B3/C 关键串在位
   T5 判分器自测（完美运行全绿 + 7 类破坏注入全捕获）
   T6 确定性：重生成到临时目录，33 文件 sha256 全一致
+  T10 M1.7 政府采购真实链（真实数据回归：公告级闭环 + GT 草案；防新样本/解析器绕过）
 退出码：0 全绿 / 1 存在失败（CI 门禁用）
 """
 from __future__ import annotations
@@ -389,9 +390,28 @@ def t_v3():
           r["Q3_export_interrupt"]["pass"])
 
 
+# ---------------------------------------------------------------- T10（M1.7 真实数据回归）
+def t_m17():
+    """M1.7 政府采购真实链（S2 批次一，research/s2-scenario-plan.md）：
+    真实文件解析→变更提取→影响面→输出复验→GT 草案核对（34 断言）+ 盘点在案检查。
+    真实数据层回归：防止新解析器/新样本引入绕过（与 T5 攻击样本回归同目的）；
+    文件级（招标文件本体）为在案待人工项，不得宣称文件级验收。"""
+    print("[T10] M1.7 政府采购真实链（cuc-028 三节点公告级闭环 + GT 草案）")
+    rc = REPO / "real-corpus" / "gov-procurement"
+    stats = json.loads((rc / "stats.json").read_text(encoding="utf-8"))
+    check("T10a 真实语料盘点在案（576 份官方公告：224 招标/174 更正/178 中标，溯源齐全）",
+          stats["total_files"] == 576
+          and stats["by_type"] == {"award": 178, "correction": 174, "tender": 224}
+          and stats["with_url"] == 576,
+          json.dumps(stats.get("by_type", {}), ensure_ascii=False))
+    code, out = run(["scripts/m17_real_chain.py"])
+    check("T10b 真实链闭环全绿（P0 解析/P1 变更/P2 影响面/P3 复验/P4 GT = 34 断言；报告含 sha256 溯源）",
+          code == 0 and "全绿" in out, fail_detail(out) if code else "")
+
+
 def main() -> int:
     print("=" * 62)
-    print("ai-bid-research 每轮测试（V0 夹具 + 一致性 + 判分器 + V1/V2/V3 验证）")
+    print("ai-bid-research 每轮测试（V0 夹具 + 一致性 + 判分器 + V1/V2/V3 + M1.7 真实链）")
     print("=" * 62)
     t_xref()
     t_fixture_integrity()
@@ -401,6 +421,7 @@ def main() -> int:
     t_v1()
     t_v2()
     t_v3()
+    t_m17()
     print("-" * 62)
     print(f"结果：{len(_passed)} 通过 / {len(_failed)} 失败")
     if _failed:

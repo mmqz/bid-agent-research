@@ -9,9 +9,11 @@
 |---|---|---|
 | [research/repository-matrix.md](research/repository-matrix.md) | 18 仓库对比矩阵：许可证/活跃度/实现状态/复用判定 | MIT·Apache 可复用 7 家；AGPL 3 家禁抄；**BidMaster-Pro LICENSE=AGPL 但 README 写 MIT（冲突警报）** |
 | [research/workflow-audit.md](research/workflow-audit.md) | 各仓库**真实执行链路**（✅/⚠️/❌ 节点级标注）+ 十项重点审计问题逐项结论 | 真实 Dify DSL / FastMCP Server / 业务 SKILL.md 均存在实证；无一家完整解决条款防丢 |
-| [research/risk-register.md](research/risk-register.md) | 15 项风险 + **三层安全保证模型（L1 输入完整性/L2 规则正确性/L3 语义正确性）** + 全量追溯矩阵（风险→设计→模块→用例→残余风险） | v2 修正 3 处测试映射错误；"确定性兜底"收紧为"确定性校验≠确定性正确"，L3 残余归人工审校门禁 |
+| [research/risk-register.md](research/risk-register.md) | 17 项风险 + **三层安全保证模型（L1 输入完整性/L2 规则正确性/L3 语义正确性）** + 全量追溯矩阵（风险→设计→模块→用例→残余风险） | v2 修正 3 处测试映射错误；"确定性兜底"收紧为"确定性校验≠确定性正确"，L3 残余归人工审校门禁；R-16/R-17（M1.7 轮新增：文件级输入 WAF 阻断/ GT 未冻结仅探索性） |
+| [research/s2-scenario-plan.md](research/s2-scenario-plan.md) | **S2 场景裁决登记（用户已定稿）**：政府采购→工程招投标→企业采购 + M1.7-A/B/C 三批次拆解与完成标准 | 公告级闭环达成但**不宣称文件级验收**；GT 24 条初标草案待人工冻结 |
 | [research/test-plan.md](research/test-plan.md) | 合成招标文件 25 埋点 + 12 用例矩阵 + **泛化与压力测试（真实结构分布测试集 D1~D6/组件版本矩阵/引用支持率人工协议/重跑稳定性/导出复验）** | 100% 阈值是**验收目标不是已证性能**；主夹具=第一套回归基准，泛化能力另验 |
-| [research/verification-plan.md](research/verification-plan.md) | **验证阶段执行计划**：可执行评测夹具三件套、三条关键链路验证（V1 解析→导出/V2 补遗影响面/V3 内核集成）、最小架构对照实验 EXP-1（Skill+MCP+状态机 vs Dify 五场景）、六方向落地任务、验证状态词典与回填纪律 | 下一步不堆仓库——验证假设、补风险、小型原型证明可行 |
+| [research/verification-plan.md](research/verification-plan.md) | **验证阶段执行计划**：可执行评测夹具三件套、四条关键链路验证（V1 解析→导出/V2 补遗影响面/V3 内核集成/M1.7 政府采购真实链）、最小架构对照实验 EXP-1（Skill+MCP+状态机 vs Dify 五场景）、六方向落地任务、验证状态词典与回填纪律 | 下一步不堆仓库——验证假设、补风险、小型原型证明可行 |
+| [research/cpa-issues-scenario-absorption.md](research/cpa-issues-scenario-absorption.md) | **真实生产场景吸收**（cpa-multi-plugins 63 条 issues 全量抓取）：流截断虚假成功/空内容不失败/超时治理/预算护栏/MCP 工具超限 → 四业务契约佐证 + REQ-OPS-01~03 新需求 + MCP-C9 工具描述预算 | 61→9 组有效映射；原始证据 research/raw/cpa-issues/ |
 | [docs/bid-domain-model.md](docs/bid-domain-model.md) | 领域对象（PRJ/TF/REQ/EV/CMP/SEC/VF/RT）+ 状态机 + ID 命名空间隔离 | 条款/证据/文档块 ID 三套命名空间永不混用 |
 | [docs/bid-mcp-contract.md](docs/bid-mcp-contract.md) | 8+1 个 MCP 工具契约（参数/返回/错误/幂等/状态转换）+ **KBAdapter 知识库适配器**（含 Dify API 端点核验与局限、Cherry 否决记录） | 知识库=import/search 的可替换实现层；自建为默认，Dify API 仅作 A/B 对比 |
 | [docs/bid-skill-design.md](docs/bid-skill-design.md) | 主 Skill 九阶段路径（顺序锁死）+ 停止条件 + 恢复协议 + 反模式清单 | 封闭 Agent 只做编排核对，解析切块归后端确定性代码 |
@@ -30,10 +32,11 @@
 - **已执行：V1 文件解析→最终 DOCX 导出全链路四段验证（v1.0 四段全绿，run_tests 26 项）**——①解析覆盖（corpus-A 文本层锚点 26/26 + corpus-R 结构探针 11/11，非正文盘点归因 G7）；②引用回填（10 链两级定位回查 + 结构漂移/书签重验语义，SEMUL 口径）；③导出保真（LO headless 8 页硬断言 + 分页纪律/页眉页脚域/图片/合并表）；④暗标口径（禁字双面零命中 + docProps 清零 + 金丝雀防空洞绿）。证据：`artifacts/v1/`；脚本：`scripts/v1_*.py`。
 - **已执行：V2 补遗/答疑/版本影响面计算验证（v1.0 七断言组全绿，run_tests T8）**——TC-09 六断言契约消费 + DIRTY 恰三章节（无关零误伤）+ 开标日级联（GT-02 翻转 EXPIRED/EV-13 维持禁绑/零误翻）+ 矛盾终裁门禁（终裁前不得 ACCEPTED）+ 幂等 no-op + 删除/新增规则（合成层）。证据：`artifacts/v2/`；脚本：`scripts/v2_impact.py`。
 - **已执行：V3 内核集成三问断言（SEMUL v1.0 全绿，run_tests T9）**——五轮重写引用保持（每轮恰一链降级+重验恢复+零悬空）；撤销只降不升（undo 不自发恢复）+ 外部修改不静默 adopt；两阶段导出中断一致性（EXPORTED ⟺ sha256 落库）。证据：`artifacts/v3/`；脚本：`scripts/v3_integration.py`。
-- 进行中：研究验证阶段（verification-plan §7 顺序）——V0 ✅ → V1 ✅ → V2 ✅ → V3 ✅（SEMUL）→ **S1 ✅（threat-model v1.0：建模发现 T-03/T-04 两 GAP）→ EXP-1 对照实验（Dify 侧待环境）/ S3 首轮指标（待模型环境）** → 决策是否进入 MVP；S2 边界裁决待用户输入。
+- 进行中：研究验证阶段（verification-plan §7 顺序）——V0 ✅ → V1 ✅ → V2 ✅ → V3 ✅（SEMUL）→ **S1 ✅（threat-model v1.0：建模发现 T-03/T-04 两 GAP）→ S2 ✅（用户裁决 2026-10-26：政府采购→工程招投标→企业采购；M1.7-A/B/C 拆解见 s2-scenario-plan）→ M1.7 批次一 ✅（公告级闭环 T10 全绿）→ EXP-1 对照实验（Dify 侧待环境）/ S3 首轮指标（待模型环境）** → 决策是否进入 MVP。
+- **已执行：M1.7 政府采购真实链验证（S2 批次一，2026-10-26，run_tests T10 全绿 34 断言）**——cuc-028 真实采购链（中传教学资源中心建设：招标 07-13/更正 07-28/中标 08-14，ccgp 官方文本 + cuc.edu.cn 镜像字节存档交叉校验）：真实文件解析 6 断言 + 变更提取（恰 3 真实 MODIFY + 2 不变陷阱 + 同值陷阱不串位）6 断言 + 影响面六规则（DIRTY 恰两章=更正公告自带声明/级联/门禁终裁/幂等）9 断言 + 输出复验（历史留痕/金额双口径/时序/双跑确定性）9 断言 + GT 草案核对 4 断言。同批：576 份官方公告溯源清单（M1.7-A）+ GT 24 条初标草案落盘（M1.7-C，全 draft_pending_human）+ cpa-multi-plugins 63 条 issues 场景吸收（9 组有效映射）。**未达成（如实）：文件级验证（招标文件本体受 ccgp WAF 阻断转人工 GT-M17-24）；真实删除/新增条款样本仍缺。证据：`real-corpus/gov-procurement/`；脚本：`scripts/m17_inventory.py`、`scripts/m17_real_chain.py`。**
 - 引擎侧协同：P0 能力需求（目录域/文档级格式/暗标元数据清零）已列 doc-engine-audit §6，经用户转达引擎团队排期；**V1 回填：G3 业务侧缓解已验（过渡）、G6 渲染复验价值坐实、G7 扩展为非正文定位器变体缺口（doc-engine-audit §4.1）**。
 
 ## 审计与验证脚本
 
 - 审计：`scripts/gh_audit.py`（元数据+文件树+README 取证）、`scripts/gh_search.py`（补充仓库搜索）、`scripts/gh_deep.py`（关键源码抽检）。Token 经环境变量注入，不入库。
-- 验证：`scripts/run_tests.py`（每轮 37 项：xref 一致性/夹具完整性/埋点读回/判分器自测/确定性/V1 四段/V2 影响面/V3 三问）；`scripts/v1_pipeline.py`（V1-a 解析覆盖）、`scripts/v1_export.py`（V1-c 导出保真）、`scripts/v1_citation.py`（V1-b 引用回填）、`scripts/v1_darkbid.py`（V1-d 暗标口径）、`scripts/v1_corpus_r.py`（corpus-R 结构层生成）、`scripts/v2_impact.py`（V2 影响面验证）、`scripts/v3_integration.py`（V3 内核集成三问）、`scripts/ooxml_util.py`（确定性 zip + 引擎指纹/定位器语义仿真）。
+- 验证：`scripts/run_tests.py`（每轮 39 项：xref 一致性/夹具完整性/埋点读回/判分器自测（13 类破坏注入+攻击样本回归）/确定性/V1 四段/V2 影响面/V3 三问/M1.7 真实链 T10）；`scripts/v1_pipeline.py`（V1-a 解析覆盖）、`scripts/v1_export.py`（V1-c 导出保真）、`scripts/v1_citation.py`（V1-b 引用回填）、`scripts/v1_darkbid.py`（V1-d 暗标口径）、`scripts/v1_corpus_r.py`（corpus-R 结构层生成）、`scripts/v2_impact.py`（V2 影响面验证）、`scripts/v3_integration.py`（V3 内核集成三问）、`scripts/m17_inventory.py`（M1.7-A 真实语料盘点）、`scripts/m17_real_chain.py`（M1.7-B 真实链验证）、`scripts/ooxml_util.py`（确定性 zip + 引擎指纹/定位器语义仿真）。真实语料库：`real-corpus/gov-procurement/`（576 份溯源清单 + cuc-028 三节点链 + GT 草案）。
