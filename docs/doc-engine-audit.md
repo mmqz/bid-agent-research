@@ -1,6 +1,7 @@
 # 文档引擎审计与集成边界（Doc Engine Audit：mdcore + cleanroom-analysis）
 
-> 审计对象：`mmqz/mdcore`（私有产品仓，main = `6daeace`，另有 compliance-baseline / mother/r23-snapshot / office-g-phase1-anchor 分支）与 `mmqz/cleanroom-analysis`（公开研究底稿仓，main = `149b32e`）。审计时间：2026-10-23。方式：**只读**（依用户要求未向两仓提交任何内容；能力需求经用户口头转达引擎团队）。
+> 审计对象：`mmqz/mdcore`（私有产品仓，审计基线 main = `6daeace`，另有 compliance-baseline / mother/r23-snapshot / office-g-phase1-anchor 分支）与 `mmqz/cleanroom-analysis`（公开研究底稿仓，审计基线 main = `149b32e`）。审计时间：2026-10-23。方式：**只读**（依用户要求未向两仓提交任何内容；能力需求经用户口头转达引擎团队）。
+> **2026-10-25 复核**：引擎仓已同步至最新（mdcore = `c33bcab`：新增提交集中于壳/web/打包面，`git diff --stat 6daeace..c33bcab` 无 office-io 触及）；G1/G2/G3 三锚点在 c33bcab 逐条复核**全部仍有效**（G1 docx.rs:2162-2163 todo!() 面 / G2 spacing-docDefaults 零命中 / G3 docProps 零命中）——正式提交材料见 `docs/engine-capability-requests-g1g3.md`。
 > 结论先行：**引擎的成熟度显著高于本业务侧此前"最小接口契约"（AD-05：create_block/update_block/get_block/render/export）的假设**——块锚点、证据三态、审校门禁、原子发布、乐观并发、容器安全门均已产品化并有语义锁测试背书。集成方案应从"自建薄适配"调整为"对齐引擎既有契约面"。差距集中在**交付格式面**（目录域/文档级样式/暗标元数据），见 §4 差距矩阵与 §6 能力需求清单。
 > 状态标注：全部条目为 `VERIFIED_SOURCE`（源码直读，锚点可复核）。
 

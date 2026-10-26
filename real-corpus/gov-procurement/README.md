@@ -29,7 +29,7 @@ inventory.json / chains.json / stats.json   M1.7-A 盘点（576 份官方公告�
 ```
 python3 scripts/m17_inventory.py     # 重建溯源清单（只读外部存档，不写外部仓库）
 python3 scripts/m17_real_chain.py    # M1.7-B 真实链验证（34 断言，退出码 0/1）
-python3 scripts/run_tests.py         # 全量回归（T10 = M1.7 真实链 + 盘点在案检查）
+python3 scripts/run_tests.py         # 全量回归（T14 = M1.7 真实链 + 盘点在案检查）
 ```
 
 ## 链全景（cuc-028：中国传媒大学教学资源中心建设）

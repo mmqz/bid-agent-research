@@ -12,11 +12,11 @@
 //! 外部引擎版本变化入组件版本矩阵，不属本层自由度）。
 
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 use std::path::Path;
 
 pub mod docx;
 pub mod extract;
+pub mod guard;
 pub mod pdf;
 pub mod xlsx;
 
@@ -65,10 +65,8 @@ pub fn kind_rank(file_name: &str) -> u8 {
 }
 
 pub fn sha256_file(path: &Path) -> std::io::Result<String> {
-    let data = std::fs::read(path)?;
-    let mut h = Sha256::new();
-    h.update(&data);
-    Ok(hex::encode(h.finalize()))
+    // T-03：流式哈希（原 fs::read 全量内存——大文件面顺带根治）
+    guard::sha256_streaming(path)
 }
 
 /// 统一分发：按扩展名选择解析器。kind（业务类别）仅作语义提示。

@@ -52,7 +52,21 @@ fn import_files(ctx: &mut Ctx, files_dir: &Path, rels: &[(&str, &str)]) -> Resul
                      format!("deduplicated: {} → {}", f.name, f.id));
             continue;
         }
-        let p = parse_file(&path, &label_of(rel)).map_err(|e| e.to_string())?;
+        let p = match parse_file(&path, &label_of(rel)) {
+            Ok(p) => p,
+            Err(e) => {
+                // R3-S2-4：单件解析失败 → Failed 落库 + 禁引 + 继续（R-01 纪律：
+                // 失败件显式登记，不整批中止——否则一个损坏件阻断全部导入）
+                let sha_for_fail = bid_parse::sha256_file(&path).map(|s| s).unwrap_or_default();
+                let (fid, _) = ctx
+                    .store
+                    .upsert_file(rel, kind, &sha_for_fail, 0, 0, 0, 0, ParseStatus::Failed, &e)
+                    .map_err(|e2| e2.code().to_string())?;
+                ctx.note("import_tender_files", false, Some("E_UNPROCESSABLE".into()),
+                         format!("{fid} {rel} 解析失败，产物禁引：{e}"));
+                continue;
+            }
+        };
         let chunks = p.blocks.len();
         let (ocr_blocks, has_text) = (p.ocr_blocks, p.has_text_layer);
         let summary = p.parse_summary.clone();

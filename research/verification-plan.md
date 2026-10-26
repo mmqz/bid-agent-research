@@ -9,12 +9,13 @@
 |---|---|---|---|---|
 | V0 | 可执行评测夹具 | 测试集能否反复运行、自动判分、回归比对 | §2 | **已建 v0.5（夹具 44 文件确定性生成：corpus-A 39（B2 扫描件修复为真实可 OCR 输入——v0.3 前图像层无字（PIL 可变字体静默空白）且尾字裁切，现静态字体+像素自证断言+T4c-OCR 回读门禁）+ corpus-R D1/D2/D5 五件 v0.1 + 判分器双实现（Rust = bidcore/bid-grade 主判：七判分项+11 类破坏注入+类型化 schema 拒绝；Python grade.py 存档）+ xref_check.py 宇宙断言 + run_tests.py 37 项全绿（17 基线 + T4c-OCR + T7=V1 四段 + T8=V2 影响面 + T9=V3 三问））** |
 | V1 | 文件解析→最终 DOCX 导出全链路 | 系统能否从"能生成文本"变成"能交付标书" | §3.1 + docs/doc-engine-audit.md | **已执行 v1.0 双线全绿（§3.1 结果）：V1-a 双证——① M1 Rust 真跑（bidcore/bid-parse 四通道真跑 corpus-A，TC-01 召回 100%）② V1-a 解析面探针（corpus-A 26/26 + corpus-R 11/11）；V1-b~d 四段验证（引擎 CONTRACT 语义 Python 仿真 SEMUL 口径——引擎本体接入后升 ENGINE_RUN）** |
-| V2 | 补遗/答疑/版本影响面计算 | 条款变更后哪些证据/矩阵/章节/资格判断必须重查；开标时间变更是否级联更新 | §3.2 + TC-09 | **已执行 v1.0（七断言组全绿，§3.2 结果；影响面规则为 domain-model §2 设计语义 Python 复刻 SEMUL 口径，与 bidcore/bid-domain Rust 交叉验证待 cargo 环境）** |
-| V3 | 文档内核集成边界 | 标书业务与 mdcore 如何共同维护版本与证据关系（不只研究 MCP 调用） | §3.3 + docs/doc-engine-audit.md | **三问断言已执行（SEMUL v1.0 全绿，§3.3 结果；引擎本体接入后升 ENGINE_RUN）** |
-| M1.7 | 政府采购真实链（S2 批次一） | 真实公开公告上：真实文件解析→补遗影响面→输出复验能否形成可追溯闭环 | §3.4 + real-corpus/gov-procurement + research/s2-scenario-plan.md | **公告级闭环已执行（T10 全绿，34 断言 P0-P4；cuc-028 三节点真实链）；文件级（招标文件本体）受 ccgp WAF 阻断转人工（GT-M17-24）；GT 24 条初标草案待人工冻结（R-17 PENDING）** |
+| V2 | 补遗/答疑/版本影响面计算 | 条款变更后哪些证据/矩阵/章节/资格判断必须重查；开标时间变更是否级联更新 | §3.2 + TC-09 | **双实现交叉全绿（2026-10-25，P1-b/c）：① Python SEMUL（v2_impact.py 七断言组，T8）② Rust IMPLEMENTED（bid-domain/impact.rs + four_contracts c1_* 4 项——DIRTY 恰三章节/级联精确翻转/GT-13 维持禁绑零误翻/终裁门禁/幂等/删除新增规则；cargo 环境已恢复）；M1.7 真实数据层同族断言另验（§3.4）** |
+| V3 | 文档内核集成边界 | 标书业务与 mdcore 如何共同维护版本与证据关系（不只研究 MCP 调用） | §3.3 + docs/doc-engine-audit.md | **三问断言双实现交叉全绿（2026-10-25）：① SEMUL v1.0（文件级 DOCX 书签证据，T9）② Rust IMPLEMENTED（bid-domain/linkage.rs + export_gate.rs + four_contracts c2/c3/c4 5 项——只降不升/外部修改不 adopt/五轮重写恰一链/零悬空/导出中断不变式；与 ProjectStatus::Exported 终态对齐）；引擎本体接入后文件级断言升 ENGINE_RUN** |
+| M1.7 | 政府采购真实链（S2 批次一） | 真实公开公告上：真实文件解析→补遗影响面→输出复验能否形成可追溯闭环 | §3.4 + real-corpus/gov-procurement + research/s2-scenario-plan.md | **公告级闭环已执行（T14 全绿，34 断言 P0-P4；cuc-028 三节点真实链）；文件级（招标文件本体）受 ccgp WAF 阻断转人工（GT-M17-24）；GT 24 条初标草案待人工冻结（R-17 PENDING）** |
 | EXP-1 | Skill+MCP+状态机 vs Dify 工作流最小对照 | AD-01/AD-02 的否决理由从"存在缺陷"升级为"实测维护与恢复成本更低" | §4 | 待执行 |
-| S1 | 安全威胁模型与人工审批边界 | 恶意文件/注入/越权/绕审的纵深防御是否后端强制 | §5.4 + docs/threat-model.md | **已产出 v1.0（15 威胁四组+供应链/信任边界五级/审批强制点矩阵；建模发现 2 个真实 GAP：T-03 压缩包炸弹限额、T-04 子进程超时——解析器加固待办）** |
-| S2 | 采购规则与业务边界 | MVP 到底服务哪类采购场景；规则来源与"不确定即停" | §5.5 | **已裁决（2026-10-26）：政府采购→工程招投标→企业采购；M1.7-A/B/C 三批次拆解见 research/s2-scenario-plan.md；批次一公告级闭环已验** |
+| S1 | 安全威胁模型与人工审批边界 | 恶意文件/注入/越权/绕审的纵深防御是否后端强制 | §5.4 + docs/threat-model.md | **已产出 v1.0（15 威胁四组+供应链/信任边界五级/审批强制点矩阵）；建模发现的 2 个 GAP 已于 M1.5 实装关闭（2026-10-25）：T-03 guard.rs 压缩包防御（prescan 三门+EOCD 守恒门+实际读取累计计量+XML 深度，10 测试）、T-04 子进程治理（超时杀进程组/溢出即时杀/五分类/并发门/TmpGuard 回收/OCR 页数门，8 测试；R3 审计修正五项后加固）；R5 独立复审新增 exotica 绕过族登记（修排 M1.6）** |
+| S2 | 采购规则与业务边界 | MVP 到底服务哪类采购场景；规则来源与"不确定即停" | §5.5 | **已裁决（2026-10-26）：政府采购→工程招投标→企业采购；M1.7-A/B/C 三批次拆解见 research/s2-scenario-plan.md；批次一公告级闭环已验。P2 实证输入：水利施工范本与政采货物范本结构差异大（数字小节/两列前附表/评分算法章位，见 artifacts/real-eval/REPORT.md §3/§6）** |
+| P2 | 真实文件评测（合成覆盖率的外部效度检验） | 真实公开招标文件上解析/抽取/引用支持表现如何；合成夹具未暴露的结构多样性 | artifacts/real-eval/（GT 草案 24 条 + score-report + REPORT.md） | **第一轮 v0.1 已执行（2026-10-25，INTEGRATION_TESTED 解析面；R3 审计修正后）**：五样本（3 文本层 PDF 76~283 页 + 1 纯扫描补遗 OCR 真跑 + zip 显式拒绝验证）× Rust 全链路；召回 33%→75%（引用支持 100%）、**类别命中 50%（R3-S2-3 新增诚实维度——确定性分类器场景局限，归 M2）**；R3 审计修正五项 + 评测驱动修 5 缺口；已知差距登记（表格两列拆行→D1、跨行拆断、技术语义归 M2、OCR 噪声→D5）+ GT 草案待人工验收；**第二轮按 S2 定序转向政府采购扩充** |
 | S3 | 模型/检索/端到端评测 | 哪个方案更少漏项、更少错误承诺、人工复核量与成本多少 | §5.6 + test-plan §5 | 待执行 |
 
 ## 2. V0：可执行评测夹具的结构设计
@@ -90,6 +91,15 @@ fixtures/
 
 **口径声明**：V1-b/V1-c 的定位器与指纹为引擎 CONTRACT 语义的 Python 仿真（ooxml_util，FNV-1a 64 公开向量对齐）——验证的是**链路设计与判定语义**，引擎本体接入后的运行时行为属 M1+ ENGINE_RUN 口径；双 Office 复验待人工。
 
+**V1-a 首轮执行结果（TESTED，被测系统 = `m1/` Rust 流水线——并行会话首轮实现，合并自远端 ecd7d97；bidcore/ 为同源演进版）**：
+- **锚点覆盖 27/27 = 100%**（含 GT-07 扫描件 OCR 锚点、GT-20 中文大写日期锚点、GT-11 表格单元格锚点）——达 corpus-A 100% 通过标准；corpus-R D1/D5 分层待真实样本就绪后补跑。
+- 判分（四场景）：G1 召回 100%（对齐器通道，REQ 零自报 gt_ids）；G2 精确 25/25（含数值归一化："3500000"≡"350 万元"）；G5 场景断言 TC-01（7 条）/TC-02（2 条）/TC-07（2 条）/TC-11（2 条）全过；G7 幂等 no-op。
+- 确定性：同场景双跑 db/trace/blocks/chunks 四工件**字节一致**（含 OCR 通道：OMP_THREAD_LIMIT=1 + 钉版 tessdata 入仓）。
+- **诚实边界**：G3 矩阵/G4 引用/G6 规则为 M2/M3/M4 范围，db 不含该字段、判分器按缺字段 FAIL（m1 判分门禁把关失败集恰为 pending 三项）；TC-09 补遗级联属 V2；B2 夹具在本轮发现并修复 P0 零墨缺陷（见 fixture v0.4 提交 51dfb79）——OCR 残余噪声（标题误识等）入 D5 矩阵。
+- 工具链口径：poppler pdftotext/pdfimages + tesseract 5.5.0 chi_sim(fast)（sha256 入仓）；OCR 标点全角回正为确定性规整（m1/src/canon.rs，附单测）。
+
+**口径注记**：m1 双跑字节一致（db/trace/blocks/chunks）为流水线工件级确定性证据；B2 夹具 P0 修复（51dfb79）与本地 c1e1d5d 系修复同源——合并取本地像素自证版。
+
 ### 3.2 V2：补遗/答疑/版本影响面计算
 
 **验证内容**：以 TC-09 为骨架扩展为影响面矩阵实测（EXP-2）：
@@ -149,7 +159,7 @@ bid-domain 六规则（R-mod/R-del/R-add/R-date/R-conf/R-idem）的数据驱动�
 条款级配对，但招标文件本体（ccgp 附件）受 WAF 阻断未获取（R-16，GT-M17-24 待人工）——公告级结果
 不得宣称为文件级验收。
 
-**执行结果（run_tests T10 · 34 断言全绿 · 报告 real-corpus/gov-procurement/artifacts/real-chain-report.json）**：
+**执行结果（run_tests T14 · 34 断言全绿 · 报告 real-corpus/gov-procurement/artifacts/real-chain-report.json）**：
 
 | 段 | 断言数 | 内容 |
 |---|---|---|
@@ -217,6 +227,16 @@ bid-domain 六规则（R-mod/R-del/R-add/R-date/R-conf/R-idem）的数据驱动�
 | `DESIGN_ASSUMPTION` | 设计推断，未经实现验证——可能被实测推翻 | 各设计文档中待验机制（如影响面规则完备性） |
 | `PENDING` | 计划中，未开始 | 本计划全部条目当前态 |
 
+**实装验证三级分记（P1 交付，2026-10-25 新增；仿真通过不得计入实装通过——两层各自分记，互不折抵）**：
+
+| 级别 | 含义 | 达标条件 | 当前归属 |
+|---|---|---|---|
+| `SIMULATED` | 设计语义在 Python 复刻层验证通过（SEMUL 口径，含文件级 DOCX 证据） | 对应断言脚本全绿 + 证据入 artifacts/ | V1-b/c/d、V2 七断言组、V3 三问（T7/T8/T9） |
+| `IMPLEMENTED` | 语义在 bidcore Rust 产品层真实现且测试通过 | cargo test 对应模块全绿（语义级断言，不依赖 Python） | T-03/T-04 防御（bid-parse/guard.rs，20 测试）；影响面引擎（bid-domain/impact.rs + four_contracts c1）；引用链/导出门（linkage.rs + export_gate.rs + c2/c3/c4）；M1 四场景（bid-domain/runner 状态机 7 测试） |
+| `INTEGRATION_TESTED` | 与真实文件/外部系统/外部工具的端到端集成测试通过 | 真实输入驱动 + 全链路判分（非合成断言） | M1 e2e_m1（corpus-A 真实夹具 × pdftotext/pdftoppm/tesseract 真集成，TC-01 召回 100%/TC-02 25×5 一致/TC-07 幂等/TC-11 E_STATE，30s 真跑）；V1-c LO headless 渲染复验（引擎面） |
+
+**诚实边界登记（M1.5，随实装更新）**：① xlsx 面的"实际读取累计计量"依赖 calamine 黑盒，入口三门（输入字节/EOCD 守恒/prescan 声明值+压缩比）已挂，声明撒谎骗过 prescan 后的 calamine 内部解压为残余面（threat-model T-03 注记）；② OCR 页数超 200 为整体显式拒绝（拒绝处理而非部分 OCR——不留部分结果纪律）；③ Python SEMUL 与 Rust 实装为**双实现交叉对照**：四关键案例两组断言均绿（分层各异：Python 文件级书签证据 / Rust 语义级+状态机对齐），**差异发现即升级为契约问题定位，禁止改预期值对齐**。
+
 **回填纪律**：每完成一个 V*/EXP*，同步三处——本表状态、risk-register 追溯矩阵"测试结果"列、architecture-decision 对应 AD 的验证状态标注。
 
 ## 7. 执行顺序建议（与评审四步对齐）
@@ -226,4 +246,4 @@ bid-domain 六规则（R-mod/R-del/R-add/R-date/R-conf/R-idem）的数据驱动�
 3. **第 4 周**：V2 影响面断言表 + V3 集成三问断言脚本。
 4. **第 5 周**：EXP-1 结论回填 AD-01/AD-02/R-12；S3 首轮指标记录（corpus-A）。
 5. **第 6 周**：S1 威胁模型 + S2 边界裁决落档；更新架构决策记录全部验证状态标注，**据此给出"是否进入 MVP 实施"的决策建议**。
-6. **第 7 周+（执行现状，2026-10-26）**：S2 裁决落档（§5.5）→ M1.7 批次一执行：真实语料盘点 576 份溯源清单 + cuc-028 三节点链公告级闭环（§3.4，T10 全绿）+ GT 24 条初标落盘（待人工冻结）+ cpa-multi-plugins 63 条 issues 场景吸收（research/cpa-issues-scenario-absorption.md）。**待办**：招标文件本体人工获取后文件级复验；S2 批次二（工程招投标：工程量清单/复杂表格/资质与技术响应）；T-00 存量测试审计；EXP-1/S3（环境）。
+6. **第 7 周+（执行现状，2026-10-26）**：S2 裁决落档（§5.5）→ M1.7 批次一执行：真实语料盘点 576 份溯源清单 + cuc-028 三节点链公告级闭环（§3.4，T14 全绿）+ GT 24 条初标落盘（待人工冻结）+ cpa-multi-plugins 63 条 issues 场景吸收（research/cpa-issues-scenario-absorption.md）。**待办**：招标文件本体人工获取后文件级复验；S2 批次二（工程招投标：工程量清单/复杂表格/资质与技术响应）；T-00 存量测试审计；EXP-1/S3（环境）。

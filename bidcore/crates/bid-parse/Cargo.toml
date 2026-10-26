@@ -14,5 +14,6 @@ zip = { workspace = true }
 quick-xml = { workspace = true }
 calamine = { workspace = true }
 unicode-normalization = { workspace = true }
+libc = { workspace = true }
 
 [dev-dependencies]
