@@ -17,6 +17,7 @@
   T13 m1 确定性：同场景双跑 db/trace/blocks/chunks 四工件字节一致（含 OCR 通道）
   （T10~T13 被测系统 = m1/ 单 crate 首轮实现，并行会话产出；bidcore/ 为演进版，回归在 cargo 侧）
   T14 M1.7 政府采购真实链（真实数据回归：公告级闭环 34 断言 + GT 草案；防新样本/解析器绕过）
+  T15 M1.7-C P2 评测 GT 草案 24 条四要素完备性（定位核验/标准答案/判定理由/复核状态；未冻结仅探索性）
 退出码：0 全绿 / 1 存在失败（CI 门禁用）
 """
 from __future__ import annotations
@@ -524,6 +525,29 @@ def t_m17():
           code == 0 and "全绿" in out, fail_detail(out) if code else "")
 
 
+
+
+# ---------------------------------------------------------------- T15（M1.7-C GT 草案四要素）
+def t_gt_enrich():
+    """M1.7-C：P2 真实文件评测 GT 草案 24 条四要素完备性回归（artifacts/real-eval）。
+    口径：draft_pending_human 未冻结——本用例只锁结构与定位核验状态，不把草案指标当验收。"""
+    print("[T15] M1.7-C GT 草案四要素（原文定位核验/标准答案/判定理由/复核状态）")
+    gt = json.loads((REPO / "artifacts" / "real-eval" / "ground-truth-draft.json").read_text(encoding="utf-8"))
+    items = gt["items"]
+    ok_fields = all(i.get("expected") and i.get("rationale") and i.get("review_status") == "draft_pending_human"
+                    and i.get("anchor_verification", {}).get("readback") == "PASS" for i in items)
+    check("T15a 24 条四要素完备且定位核验全 PASS（20 verbatim/2 normalized/2 keyword；0 存疑）",
+          len(items) == 24 and ok_fields
+          and gt["enrichment"]["anchor_stats"].get("unlocated") == 0
+          and gt["enrichment"]["verbatim_fixed"] == ["GT-R01", "GT-T01"],
+          f"n={len(items)}")
+    check("T15b 争议条目注记在案（7 条退回候选：T02 改判/B04 类别/R05 拆列/S03-05 跨行/V04 跨行/R01 T01 转写修正）",
+          sorted(gt["enrichment"]["disputed_items"]) ==
+          ["GT-B04", "GT-R05", "GT-S03", "GT-S04", "GT-S05", "GT-T02", "GT-V04"]
+          and all("review_note" in next(i for i in items if i["gt_id"] == k)
+                  for k in gt["enrichment"]["disputed_items"]),
+          str(gt["enrichment"]["disputed_items"]))
+
 def main() -> int:
     print("=" * 62)
     print("ai-bid-research 每轮测试（V0 夹具 + 一致性 + 判分器 + V1/V2/V3 + m1 并行线 + M1.7 真实链）")
@@ -538,6 +562,7 @@ def main() -> int:
     t_v3()
     t_m1()
     t_m17()
+    t_gt_enrich()
     print("-" * 62)
     print(f"结果：{len(_passed)} 通过 / {len(_failed)} 失败")
     if _failed:

@@ -2,6 +2,8 @@
 
 > 评测语义：`INTEGRATION_TESTED`（真实公开招标文件 × bid-parse/extract Rust 全链路真跑）
 > Ground truth 状态：**AI 初标草案（标注者=Z.ai，待人工验收）——验收前所有指标为「草案对齐结果」，不外推为产品验收指标**
+>
+> **M1.7-C 四要素补全（2026-10-26，scripts/real_eval_gt_enrich.py，run_tests T15 锁定）**：24 条逐项补 原文定位核验（对回 parse 文本层三级匹配，24/24 PASS）+ 判定理由 + 复核状态（draft_pending_human）+ 争议注记 7 条；定位纪律检出并修正 2 处摘录转写漂移（GT-R01 前附表双列穿插/叁级双写法、GT-T01 小节头穿插句中——原摘录留档 excerpt_original）。指标计算口径不变（gt_id/excerpt/expected 未参与改动）。
 > 纪律：不外推合成覆盖率（corpus-A 100% 召回不适用真实文件面——本评测即其外部效度检验）
 
 ## 1. 样本集（公开水利招标文件，来源 sunShieLoveMe/ai_bidding_power_grid test_samples——政府采购公开文件）
